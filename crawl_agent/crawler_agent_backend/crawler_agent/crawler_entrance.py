@@ -58,7 +58,7 @@ async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str
         args=[
             "@playwright/mcp@latest",
             "--browser", "chrome",
-            "--executable-path", "/nfsdat1/home/rfchenslm/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome",
+            "--executable-path", os.environ.get("PLAYWRIGHT_CHROMIUM_PATH", "/ms-playwright/chromium-1224/chrome-linux64/chrome"),
             "--no-sandbox",
             "--isolated",
         ],

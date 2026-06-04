@@ -26,6 +26,7 @@ import {
   useCrawlTaskResults,
   type CrawlTaskItem,
   type OutputMode,
+  type StorageTarget,
 } from "@/core/crawler";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,23 @@ function getStatusText(status?: CrawlTaskItem["status"]) {
   };
 
   return map[status] ?? status;
+}
+function getStorageText(storageDbType?: string | null) {
+  if (storageDbType === "mysql") return "MySQL";
+  if (storageDbType === "milvus") return "Milvus";
+  return "本地文件";
+}
+
+function getStorageDescription(storageTarget: StorageTarget) {
+  if (storageTarget === "mysql") {
+    return "MySQL 模式下，爬取结果将写入已配置的 MySQL 存储，请确保 MySQL 存储配置已完成。";
+  }
+
+  if (storageTarget === "milvus") {
+    return "Milvus 模式下，爬取结果将写入已配置的 Milvus 向量库，请确保 Milvus 存储配置已完成。";
+  }
+
+  return "本地文件模式下，爬取结果将保存到 crawler-backend 的 outputs 目录，并同步写入任务结果数据库。";
 }
 
 function getStatusClassName(status?: CrawlTaskItem["status"]) {
@@ -271,6 +289,18 @@ function CurrentTaskSidePanel({
                     {selectedTask.source || "手动"}
                   </div>
                 </div>
+                <div className="rounded-xl border p-3">
+                  <div className="text-xs text-muted-foreground">输出格式</div>
+                  <div className="mt-1 truncate font-medium">
+                    {selectedTask.output_mode.toUpperCase()}
+                  </div>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <div className="text-xs text-muted-foreground">保存位置</div>
+                  <div className="mt-1 truncate font-medium">
+                    {getStorageText(selectedTask.storage_db_type)}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -293,7 +323,7 @@ function CurrentTaskSidePanel({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <Button className="w-full" variant="outline" onClick={onRefresh}>
                 <RefreshCwIcon className="mr-2 size-4" />
                 刷新任务
@@ -324,6 +354,8 @@ export function CrawlerWorkbench({
   const [portalUrl, setPortalUrl] = useState("");
   const [query, setQuery] = useState("");
   const [outputMode, setOutputMode] = useState<OutputMode>("html");
+  const [storageTarget, setStorageTarget] = useState<StorageTarget>("local");
+  const [jsonSchemaText, setJsonSchemaText] = useState("");
 
   const [scheduleFrequency, setScheduleFrequency] = useState("daily");
   const [scheduleTime, setScheduleTime] = useState("09:00");
@@ -341,12 +373,27 @@ export function CrawlerWorkbench({
       return;
     }
 
+    let parsedJsonSchema: Record<string, unknown> | unknown[] | null = null;
+
+    if (outputMode === "json" && jsonSchemaText.trim()) {
+      try {
+        parsedJsonSchema = JSON.parse(jsonSchemaText) as
+          | Record<string, unknown>
+          | unknown[];
+      } catch {
+        toast.error("JSON 结构定义格式不正确，请检查是否为合法 JSON");
+        return;
+      }
+    }
+
     try {
       const task = await createTask.mutateAsync({
         name: name.trim(),
         portal_url: portalUrl.trim(),
         query: query.trim(),
         output_mode: outputMode,
+        storage_db_type: storageTarget === "local" ? null : storageTarget,
+        json_schema: parsedJsonSchema,
       });
 
       toast.success("爬取任务已创建");
@@ -354,6 +401,8 @@ export function CrawlerWorkbench({
       setPortalUrl("");
       setQuery("");
       setOutputMode("html");
+      setStorageTarget("local");
+      setJsonSchemaText("");
 
       onSelectTask(task);
       onRefresh();
@@ -380,7 +429,7 @@ export function CrawlerWorkbench({
           </div>
 
           <div className="rounded-2xl border bg-background p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <div className="text-lg font-semibold">网页智能化爬取</div>
                 <div className="mt-1 text-sm text-muted-foreground">
@@ -388,38 +437,38 @@ export function CrawlerWorkbench({
                 </div>
               </div>
 
-              <div className="inline-flex rounded-xl bg-muted p-1">
+              <div className="inline-flex shrink-0 rounded-xl bg-muted p-1">
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
                   className={cn(
-                    "rounded-lg px-3 py-1.5 text-sm transition",
+                    "flex min-w-[104px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-sm transition",
                     mode === "manual"
                       ? "bg-background shadow-sm"
                       : "text-muted-foreground",
                   )}
                 >
-                  <PlayIcon className="mr-1 inline size-3.5" />
+                  <PlayIcon className="size-3.5" />
                   手动爬取
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("schedule")}
                   className={cn(
-                    "rounded-lg px-3 py-1.5 text-sm transition",
+                    "flex min-w-[104px] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-sm transition",
                     mode === "schedule"
                       ? "bg-background shadow-sm"
                       : "text-muted-foreground",
                   )}
                 >
-                  <TimerIcon className="mr-1 inline size-3.5" />
+                  <TimerIcon className="size-3.5" />
                   定时爬取
                 </button>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="space-y-2">
+            <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+              <div className="space-y-2.5">
                 <label className="text-sm font-medium">
                   {mode === "manual" ? "任务名称" : "调度名称"}
                 </label>
@@ -430,7 +479,7 @@ export function CrawlerWorkbench({
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <label className="text-sm font-medium">目标 URL</label>
                 <Input
                   value={portalUrl}
@@ -449,13 +498,13 @@ export function CrawlerWorkbench({
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <label className="text-sm font-medium">输出模式</label>
                 <Select
                   value={outputMode}
                   onValueChange={(value) => setOutputMode(value as OutputMode)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-[150px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -466,9 +515,48 @@ export function CrawlerWorkbench({
                 </Select>
               </div>
 
+              <div className="space-y-2.5">
+                <label className="text-sm font-medium">保存位置</label>
+                <Select
+                  value={storageTarget}
+                  onValueChange={(value) => setStorageTarget(value as StorageTarget)}
+                >
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">本地文件</SelectItem>
+                    <SelectItem value="mysql">MySQL</SelectItem>
+                    <SelectItem value="milvus">Milvus</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="max-w-[420px] text-xs leading-5 text-muted-foreground">
+                  {getStorageDescription(storageTarget)}
+                </div>
+              </div>
+
+              {outputMode === "json" && (
+                <div className="space-y-2.5 lg:col-span-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-sm font-medium">JSON 结构定义</label>
+                    <span className="text-xs text-muted-foreground">可选</span>
+                  </div>
+                  <Textarea
+                    value={jsonSchemaText}
+                    onChange={(event) => setJsonSchemaText(event.target.value)}
+                    placeholder='例如：{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"publish_time":{"type":"string"}}}}}'
+                    rows={4}
+                    className="font-mono text-xs leading-5"
+                  />
+                  <div className="rounded-xl bg-muted/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                    如果希望固定 JSON 输出结构，请填写 JSON Schema 或结构模板；留空则由系统自动生成结构。
+                  </div>
+                </div>
+              )}
+
               {mode === "schedule" && (
                 <>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <label className="text-sm font-medium">执行频率</label>
                     <Select
                       value={scheduleFrequency}
@@ -485,7 +573,7 @@ export function CrawlerWorkbench({
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <label className="text-sm font-medium">执行时间</label>
                     <Input
                       value={scheduleTime}
@@ -512,7 +600,7 @@ export function CrawlerWorkbench({
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-3">
+            <div className="mt-6 flex items-center justify-end gap-3 border-t pt-5">
               {mode === "schedule" && (
                 <div className="mr-auto flex items-center gap-2 text-xs text-muted-foreground">
                   <ClockIcon className="size-3.5" />
