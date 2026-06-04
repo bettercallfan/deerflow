@@ -1,0 +1,30 @@
+.DS_Store
+
+# IDE
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.pycache/
+.venv/
+venv/
+
+# Secrets and local env
+.env
+
+# Frontend dependencies / build
+node_modules/
+crawler_agent_fronted/node_modules/
+crawler_agent_fronted/dist/
+
+# Temp and generated docs
+tmp/
+crawler_agent_backend/.playwright-mcp/
+crawler_agent_backend/crawler_agent/.playwright-mcp/
+
+# Local databases
+*.db
+
+# Local experiment outputs
+crawler_agent_backend/crawler_agent/boxed_image.png

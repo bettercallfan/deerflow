@@ -9,6 +9,7 @@ from app.gateway.routers import (
     agents,
     artifacts,
     channels,
+    crawler,
     data_center,
     mcp,
     memory,
@@ -146,6 +147,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "description": "Manage datasets and data sources shown in the front-end data center",
             },
             {
+                "name": "crawler",
+                "description": "Web crawling task management — create, monitor, and retrieve results from the crawler agent",
+            },
+            {
                 "name": "health",
                 "description": "Health check and system status endpoints",
             },
@@ -187,6 +192,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # SkillRouter management API is mounted at /api/skill-router
     app.include_router(skill_router.router)
+
+    # Crawler proxy API is mounted at /api/data-center/crawler
+    app.include_router(crawler.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:

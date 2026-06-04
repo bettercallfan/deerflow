@@ -26,8 +26,15 @@ import {
   writeSelectedDataSourceIds,
 } from "@/core/data-center";
 
+import type { CrawlTaskItem } from "@/core/crawler";
+import { useCrawlTasks } from "@/core/crawler";
+import { CrawlerWorkbench } from "./crawler-workbench";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
+
+
+import { CrawlerTaskCardList } from "./crawler-task-list";
+import { CrawlerTaskDetail } from "./crawler-task-detail";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -177,14 +184,22 @@ export function DataCenterPage() {
     refetch: refetchEsIndices,
   } = useEsIndices();
 
+  const {
+    data: crawlerData,
+    isLoading: isCrawlerLoading,
+    error: crawlerError,
+    refetch: refetchCrawler,
+  } = useCrawlTasks();
+
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"sources" | "uploads">("sources");
+  const [activeTab, setActiveTab] = useState<"sources" | "uploads" | "crawler">("sources");
   const [selectedId, setSelectedId] = useState<string>("");
   const [chatSelection, setChatSelection] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [databaseDialogOpen, setDatabaseDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedCrawlerTask, setSelectedCrawlerTask] = useState<CrawlTaskItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -365,25 +380,21 @@ export function DataCenterPage() {
                       variant="ghost"
                       aria-label={t.dataCenter.refresh}
                       onClick={() => {
-                        void refetch();
-                        void refetchEsIndices();
+                        if (activeTab === "crawler") {
+                          void refetchCrawler();
+                        } else {
+                          void refetch();
+                          void refetchEsIndices();
+                        }
                       }}
                     >
                       <RefreshCwIcon className="size-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t.dataCenter.addData}
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                    >
-                      <CirclePlusIcon className="size-4" />
                     </Button>
                   </div>
                 </div>
 
                 <div className="shrink-0 space-y-4 border-b p-6">
+                  {activeTab !== "crawler" && (
                   <div className="relative">
                     <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                     <Input
@@ -393,6 +404,7 @@ export function DataCenterPage() {
                       className="pl-9"
                     />
                   </div>
+                  )}
                   <div className="bg-muted inline-flex rounded-xl p-1">
                     <button
                       type="button"
@@ -418,9 +430,31 @@ export function DataCenterPage() {
                     >
                       {t.dataCenter.uploadedData}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("crawler")}
+                      className={cn(
+                        "rounded-lg px-4 py-2 text-sm transition",
+                        activeTab === "crawler"
+                          ? "bg-background shadow-sm"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {t.dataCenter.webScraping}
+                    </button>
                   </div>
                 </div>
 
+                {activeTab === "crawler" ? (
+                <CrawlerTaskCardList
+                  tasks={crawlerData?.items ?? []}
+                  isLoading={isCrawlerLoading}
+                  error={crawlerError}
+                  selectedTaskId={selectedCrawlerTask?.id ?? null}
+                  onSelectTask={setSelectedCrawlerTask}
+                  t={t}
+                />
+                ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <div className="space-y-2 p-4 pb-20">
                     {(error || esError) && (
@@ -511,10 +545,18 @@ export function DataCenterPage() {
                     })}
                   </div>
                 </div>
+              )}
               </aside>
 
+              {activeTab === "crawler" ? (
+                <CrawlerWorkbench
+                  selectedTask={selectedCrawlerTask}
+                  onSelectTask={setSelectedCrawlerTask}
+                  onRefresh={() => void refetchCrawler()}
+                />
+              ) : (
               <div className="grid h-full min-h-0 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="relative flex min-h-[32rem] flex-col items-center justify-center border-r px-8 py-10"> 
+                <div className="relative flex min-h-[32rem] flex-col items-center justify-center border-r px-8 py-10">
                   {selectedSource ? (
                     isEsSource(selectedSource) ? (
                       <EsIndexMainPanel
@@ -738,6 +780,7 @@ export function DataCenterPage() {
                   </div>
                 </aside>
               </div>
+              )}
             </div>
           </section>
         </div>

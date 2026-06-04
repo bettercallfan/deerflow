@@ -268,6 +268,31 @@ export const enUS: Translations = {
       databaseComingSoonDescription:
         "The local dataset and uploaded-file flow is live now. Database connection management, connection testing, and schema preview will land in the next phase.",
       databaseComingSoonAction: "Got it",
+      webScraping: "Web Scraping",
+      crawler: {
+        createTask: "New Crawl Task",
+        taskName: "Task Name",
+        taskNamePlaceholder: "Enter task name",
+        targetUrl: "Target URL",
+        targetUrlPlaceholder: "https://example.com",
+        searchQuery: "Search Query",
+        searchQueryPlaceholder: "Describe what to crawl, e.g. fetch all news headlines and body text",
+        outputMode: "Output Mode",
+        taskList: "Crawl Tasks",
+        taskDetail: "Task Detail",
+        crawlResults: "Crawl Results",
+        noTaskSelected: "Select a crawl task to view details",
+        noResults: "No crawl results yet",
+        refresh: "Refresh",
+        status: {
+          PENDING: "Pending",
+          RUNNING: "Running",
+          SUCCEEDED: "Completed",
+          FAILED: "Failed",
+          CANCELED: "Canceled",
+          SKIPPED_NO_CHANGE: "Skipped (no change)",
+        },
+      },
     },
 
   // Page titles (document title)

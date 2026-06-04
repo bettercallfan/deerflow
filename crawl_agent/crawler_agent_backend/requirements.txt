@@ -1,0 +1,22 @@
+# API service
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+sqlalchemy==2.0.41
+pydantic==2.12.5
+pydantic-settings==2.10.1
+apscheduler==3.11.0
+
+# Core crawling / extraction
+requests==2.32.3
+beautifulsoup4==4.14.3
+openai==2.30.0
+agentscope==1.0.7
+selenium==4.41.0
+fake-useragent==2.2.0
+crawl4ai
+transformers==5.3.0
+sentencepiece
+
+# External storage adapters
+pymysql==1.1.1
+pymilvus==2.6.9

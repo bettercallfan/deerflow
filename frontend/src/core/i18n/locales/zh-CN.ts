@@ -254,6 +254,31 @@ export const zhCN: Translations = {
       databaseComingSoonDescription:
         "当前已经跑通本地数据集和上传数据链路，数据库连接管理、连接测试和 schema 预览会在第二阶段接入。",
       databaseComingSoonAction: "我知道了",
+      webScraping: "网页信息爬取",
+      crawler: {
+        createTask: "新建爬取任务",
+        taskName: "任务名称",
+        taskNamePlaceholder: "输入任务名称",
+        targetUrl: "目标网址",
+        targetUrlPlaceholder: "https://example.com",
+        searchQuery: "搜索查询",
+        searchQueryPlaceholder: "描述你想爬取的内容，例如：获取所有新闻标题和正文",
+        outputMode: "输出模式",
+        taskList: "爬取任务",
+        taskDetail: "任务详情",
+        crawlResults: "爬取结果",
+        noTaskSelected: "选择一个爬取任务查看详情",
+        noResults: "暂无爬取结果",
+        refresh: "刷新",
+        status: {
+          PENDING: "等待中",
+          RUNNING: "运行中",
+          SUCCEEDED: "已完成",
+          FAILED: "失败",
+          CANCELED: "已取消",
+          SKIPPED_NO_CHANGE: "无变化跳过",
+        },
+      },
     },
 
   // Page titles (document title)

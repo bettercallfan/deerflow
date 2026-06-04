@@ -113,3 +113,16 @@ datasets/network-traffic/outputs/**
 .github/skills/
 **/.env
 intent_files_backup/
+
+# Crawler Agent local/runtime files
+crawl_agent/**/.env
+crawl_agent/**/data/
+crawl_agent/**/outputs/
+crawl_agent/**/*.db
+crawl_agent/**/__pycache__/
+crawl_agent/**/*.pyc
+
+# Local logs and caches
+logs/
+*.log
+.cache/

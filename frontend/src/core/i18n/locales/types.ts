@@ -201,6 +201,31 @@ export interface Translations {
     databaseComingSoonTitle: string;
     databaseComingSoonDescription: string;
     databaseComingSoonAction: string;
+    webScraping: string;
+    crawler: {
+      createTask: string;
+      taskName: string;
+      taskNamePlaceholder: string;
+      targetUrl: string;
+      targetUrlPlaceholder: string;
+      searchQuery: string;
+      searchQueryPlaceholder: string;
+      outputMode: string;
+      taskList: string;
+      taskDetail: string;
+      crawlResults: string;
+      noTaskSelected: string;
+      noResults: string;
+      refresh: string;
+      status: {
+        PENDING: string;
+        RUNNING: string;
+        SUCCEEDED: string;
+        FAILED: string;
+        CANCELED: string;
+        SKIPPED_NO_CHANGE: string;
+      };
+    };
   };
 
   // Page titles (document title)

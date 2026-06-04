@@ -1,0 +1,263 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - link "中央人民政府门户网站" [ref=e5] [cursor=pointer]:
+        - /url: http://www.gov.cn/
+      - generic [ref=e6]: "|"
+      - link "繁體版" [ref=e7] [cursor=pointer]:
+        - /url: javascript:void(0)
+      - generic [ref=e8]: "|"
+      - link "En" [ref=e9] [cursor=pointer]:
+        - /url: https://en.shaanxi.gov.cn/
+      - generic [ref=e10]: "|"
+      - link "无障碍阅读" [ref=e11] [cursor=pointer]:
+        - /url: javascript:void(0);
+      - link "长者模式" [ref=e12] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/wap.html
+      - generic [ref=e13]:
+        - generic [ref=e14]: "|"
+        - link "登录" [ref=e15] [cursor=pointer]:
+          - /url: http://sfrz.shaanxi.gov.cn/sysauthserver/authorize?client_id=000000090&response_type=code&redirect_uri=https://www.shaanxi.gov.cn/xw/ldx/bm/
+        - generic [ref=e16]: "|"
+        - link "注册" [ref=e17] [cursor=pointer]:
+          - /url: http://sfrz.shaanxi.gov.cn/sysauthserver/authorize?client_id=000000090&response_type=code&redirect_uri=https://www.shaanxi.gov.cn/xw/ldx/bm/
+        - link [ref=e18] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/ggbf/zwwx/
+        - generic [ref=e19]: "|"
+        - link [ref=e20] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/ggbf/zwwb/
+    - generic [ref=e22]:
+      - link [ref=e23] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/
+      - generic [ref=e24]:
+        - generic [ref=e26]:
+          - textbox "请输入关键字" [ref=e27]
+          - button [ref=e28] [cursor=pointer]
+        - generic [ref=e29]:
+          - generic [ref=e30]: 智能推荐：
+          - link "秦创原" [ref=e32] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/xw/ztzl/zxzt/qcy/index.html
+          - link "营商环境" [ref=e34] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/sxsearch/search.html?tenantId=16711&code=1920ae4af69&searchWord=%E8%90%A5%E5%95%86%E7%8E%AF%E5%A2%83
+          - link "招考招录" [ref=e36] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/xw/ztzl/zxzt/zkzl/index.html
+          - link "创新发展" [ref=e38] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/sxsearch/search.html?tenantId=16711&code=1920ae4af69&searchWord=%E5%88%9B%E6%96%B0%E5%8F%91%E5%B1%95
+    - generic [ref=e40]:
+      - link "首页" [ref=e41] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/
+      - link "省政府" [ref=e43] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/szf/
+      - link "省长" [ref=e45] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/szf/szfld/zg/
+      - link "新闻" [ref=e47] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/xw/
+      - link "政策" [ref=e49] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/zfxxgk/
+      - link "互动" [ref=e51] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/hd/
+      - link "服务" [ref=e53] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/fw/
+      - link "数据" [ref=e55] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/sj/
+      - link "省情" [ref=e57] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/sq/
+  - generic [ref=e58]:
+    - generic [ref=e59]:
+      - img [ref=e60]
+      - link "首页" [ref=e61] [cursor=pointer]:
+        - /url: ../../../
+      - generic [ref=e62]: ">"
+      - link "新闻" [ref=e63] [cursor=pointer]:
+        - /url: ../../
+      - generic [ref=e64]: ">"
+      - link "联动" [ref=e65] [cursor=pointer]:
+        - /url: ../
+      - generic [ref=e66]: ">"
+      - text: 部门
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - link "部门" [ref=e71] [cursor=pointer]:
+          - /url: javascript:void(0)
+        - list [ref=e72]:
+          - listitem [ref=e73]:
+            - link "【省农业农村厅】陕西省农业对外投资与贸易专题培训在海南举办" [ref=e74] [cursor=pointer]:
+              - /url: ./202604/t20260401_3626420.html
+            - text: 2026-04-01
+          - listitem [ref=e75]:
+            - link "【省人力资源社会保障厅】陕西开展“12333全国统一咨询日”活动" [ref=e76] [cursor=pointer]:
+              - /url: ./202603/t20260331_3626064.html
+            - text: 2026-03-31
+          - listitem [ref=e77]:
+            - link "【省水利厅】陕西不断提升地下水保护管理规范化水平" [ref=e78] [cursor=pointer]:
+              - /url: ./202603/t20260331_3626054.html
+            - text: 2026-03-31
+          - listitem [ref=e79]:
+            - link "【省工业和信息化厅】西安入选全国城域“毫秒用算”专项行动实施范围名单" [ref=e80] [cursor=pointer]:
+              - /url: ./202603/t20260330_3625707.html
+            - text: 2026-03-30
+          - listitem [ref=e81]:
+            - link "【省发展改革委】陕西修订秦岭生态环境破坏行为举报奖励机制" [ref=e82] [cursor=pointer]:
+              - /url: ./202603/t20260330_3625701.html
+            - text: 2026-03-30
+        - list [ref=e83]:
+          - listitem [ref=e84]:
+            - link "【省文物局】延安发现宋代伎乐人物石雕造像" [ref=e85] [cursor=pointer]:
+              - /url: ./202603/t20260330_3625700.html
+            - text: 2026-03-30
+          - listitem [ref=e86]:
+            - link "【省商务厅】陕西全力推进招商引资创新发展" [ref=e87] [cursor=pointer]:
+              - /url: ./202603/t20260328_3625631.html
+            - text: 2026-03-28
+          - listitem [ref=e88]:
+            - link "【省发展改革委】陕西新型城镇化建设迈入新阶段" [ref=e89] [cursor=pointer]:
+              - /url: ./202603/t20260328_3625624.html
+            - text: 2026-03-28
+          - listitem [ref=e90]:
+            - link "【省工业和信息化厅】陕西组织申报第一批国家新兴产业发展示范基地" [ref=e91] [cursor=pointer]:
+              - /url: ./202603/t20260327_3625248.html
+            - text: 2026-03-27
+          - listitem [ref=e92]:
+            - link "【省人力资源社会保障厅】陕西省职业技能大赛竞赛项目发布" [ref=e93] [cursor=pointer]:
+              - /url: ./202603/t20260327_3625236.html
+            - text: 2026-03-27
+        - list [ref=e94]:
+          - listitem [ref=e95]:
+            - link "【省发展改革委】西安空港型国家物流枢纽建设提质增效" [ref=e96] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624896.html
+            - text: 2026-03-26
+          - listitem [ref=e97]:
+            - link "【省文化和旅游厅】把“文化大餐”做成“家常便饭”" [ref=e98] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624895.html
+            - text: 2026-03-26
+          - listitem [ref=e99]:
+            - link "【省文物局】省文保院“陕西石窟寺保护技术”课题立项" [ref=e100] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624891.html
+            - text: 2026-03-26
+          - listitem [ref=e101]:
+            - link "【省科技厅】读优秀科普图书，解锁科学新知" [ref=e102] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624886.html
+            - text: 2026-03-26
+          - listitem [ref=e103]:
+            - link "【省水利厅】陕西着力构建灌溉用水保障体系" [ref=e104] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624884.html
+            - text: 2026-03-26
+        - list [ref=e105]:
+          - listitem [ref=e106]:
+            - link "【省自然资源厅】陕西分类化解农房宅基地确权登记难点问题" [ref=e107] [cursor=pointer]:
+              - /url: ./202603/t20260326_3624881.html
+            - text: 2026-03-26
+          - listitem [ref=e108]:
+            - link "【省生态环境厅】去年陕西生态质量保持“一类”水平" [ref=e109] [cursor=pointer]:
+              - /url: ./202603/t20260325_3624526.html
+            - text: 2026-03-25
+          - listitem [ref=e110]:
+            - link "【省工业和信息化厅】机器轰鸣生产忙 铆足干劲谋发展" [ref=e111] [cursor=pointer]:
+              - /url: ./202603/t20260325_3624497.html
+            - text: 2026-03-25
+          - listitem [ref=e112]:
+            - link "【省商务厅】陕西全力推动外经贸扩量提质" [ref=e113] [cursor=pointer]:
+              - /url: ./202603/t20260324_3624195.html
+            - text: 2026-03-24
+          - listitem [ref=e114]:
+            - link "【省知识产权局】陕西八项省级地理标志产品地方标准发布" [ref=e115] [cursor=pointer]:
+              - /url: ./202603/t20260324_3624187.html
+            - text: 2026-03-24
+        - generic [ref=e116]:
+          - generic [ref=e117] [cursor=pointer]: "1"
+          - link "2" [ref=e118] [cursor=pointer]:
+            - /url: index_1.html
+          - link "3" [ref=e119] [cursor=pointer]:
+            - /url: index_2.html
+          - link "4" [ref=e120] [cursor=pointer]:
+            - /url: index_3.html
+          - link "5" [ref=e121] [cursor=pointer]:
+            - /url: index_4.html
+          - generic [ref=e122] [cursor=pointer]: ...
+          - link "50" [ref=e123] [cursor=pointer]:
+            - /url: index_49.html
+          - link ">" [ref=e124] [cursor=pointer]:
+            - /url: index_1.html
+          - link "尾页" [ref=e125] [cursor=pointer]:
+            - /url: index_49.html
+      - generic [ref=e126]:
+        - link "联动" [ref=e128] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/xw/ldx/
+        - list [ref=e129]:
+          - listitem [ref=e130]:
+            - link "【榆林】平安矩阵筑牢校园“防护网”" [ref=e131] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/ds/202604/t20260401_3626426.html
+          - listitem [ref=e132]:
+            - link "【西安】优化“急救优先”交通组织" [ref=e133] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/ds/202604/t20260401_3626425.html
+          - listitem [ref=e134]:
+            - link "【省农业农村厅】陕西省农业对外投资与贸易专题培训在海南举办" [ref=e135] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/bm/202604/t20260401_3626420.html
+          - listitem [ref=e136]:
+            - link "【省人力资源社会保障厅】陕西开展“12333全国统一咨询日”活动" [ref=e137] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/bm/202603/t20260331_3626064.html
+          - listitem [ref=e138]:
+            - link "【省水利厅】陕西不断提升地下水保护管理规范化水平" [ref=e139] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/bm/202603/t20260331_3626054.html
+          - listitem [ref=e140]:
+            - link "【宝鸡】发现国家二级保护动物黄喉貂" [ref=e141] [cursor=pointer]:
+              - /url: https://www.shaanxi.gov.cn/xw/ldx/ds/202603/t20260331_3626053.html
+        - link "政策解读 · 图解" [ref=e143] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/zfxxgk/zcjd/
+        - link [ref=e144] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/zfxxgk/zcjd/tjcwhy/202604/t20260401_3626659.html
+          - img [ref=e145]
+        - link "热词" [ref=e147] [cursor=pointer]:
+          - /url: javascript:;
+        - generic [ref=e148]:
+          - link "秦创原" [ref=e149] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/xw/ztzl/zxzt/qcy/index.html
+          - link "创新发展" [ref=e150] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/sxsearch/search.html?tenantId=16711&code=1920ae4af69&searchWord=%E5%88%9B%E6%96%B0%E5%8F%91%E5%B1%95
+          - link "营商环境" [ref=e151] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/sxsearch/search.html?tenantId=16711&code=1920ae4af69&searchWord=%E8%90%A5%E5%95%86%E7%8E%AF%E5%A2%83
+          - link "招考招录" [ref=e152] [cursor=pointer]:
+            - /url: https://www.shaanxi.gov.cn/xw/ztzl/zxzt/zkzl/index.html
+        - generic [ref=e153]:
+          - link [ref=e154] [cursor=pointer]:
+            - /url: javascript:void(0)
+            - img [ref=e155]
+          - link [ref=e156] [cursor=pointer]:
+            - /url: javascript:void(0)
+            - img [ref=e157]
+  - generic [ref=e161]:
+    - link [ref=e164] [cursor=pointer]:
+      - /url: https://bszs.conac.cn/sitename?method=show&id=0BE1A9574A9F592AE053012819AC157E
+      - img [ref=e165]
+    - img [ref=e168] [cursor=pointer]
+    - generic [ref=e169]:
+      - paragraph [ref=e170]:
+        - link "意见建议" [ref=e171] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/ggbf/yjzj/
+        - text: "|"
+        - link "违法和不良信息举报" [ref=e172] [cursor=pointer]:
+          - /url: https://www.12377.cn/
+      - paragraph [ref=e173]:
+        - link "陕ICP备10004160号" [ref=e174] [cursor=pointer]:
+          - /url: http://beian.miit.gov.cn
+        - text: 网站标识码6100000017
+        - link "陕公网安备 61010202000169号" [ref=e175] [cursor=pointer]:
+          - /url: http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=61010202000169
+      - paragraph [ref=e176]: 陕西省人民政府办公厅主办
+      - paragraph [ref=e177]:
+        - text: 技术支持：029-63912478
+        - link "网站地图" [ref=e178] [cursor=pointer]:
+          - /url: https://www.shaanxi.gov.cn/ggbf/wztd/
+    - generic [ref=e179]:
+      - paragraph [ref=e180]
+      - link [ref=e181] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/ggbf/zwwb/
+      - link [ref=e182] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/ggbf/zwwx/
+    - paragraph [ref=e184]:
+      - link [ref=e185] [cursor=pointer]:
+        - /url: https://www.shaanxi.gov.cn/hd/zwxmt/xmtjzszfbgt/
+    - paragraph [ref=e187]
+  - link "按回车键在新窗口打开无障碍说明页面,按Ctrl加波浪键打开导盲模式。" [ref=e188] [cursor=pointer]:
+    - /url: javascript:void(0);
+    - text: 按回车键在新窗口打开无障碍说明页面,按Ctrl+~键打开导盲模式。
