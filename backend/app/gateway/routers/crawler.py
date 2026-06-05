@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import requests
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ class CrawlTaskCreateRequest(BaseModel):
     portal_url: str = Field(min_length=1, description="Target website URL to crawl")
     query: str = Field(min_length=1, description="Natural-language description of what to crawl")
     output_mode: OutputMode = Field(default="html", description="Output format: html, markdown, or json")
+    json_schema: dict | list | None = Field(default=None, description="JSON schema for structured extraction (json mode only)")
+    storage_db_type: str | None = Field(default=None, description="External storage target: mysql, milvus, or null for local")
 
 
 # ── Response schemas ─────────────────────────────────────────────
@@ -111,21 +114,39 @@ def _crawler_post(path: str, json_body: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def _crawler_delete(path: str) -> dict[str, Any]:
+    url = f"{CrawlerBackendURL}/api/v1/{path.lstrip('/')}"
+    try:
+        resp = requests.delete(url, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else 500
+        detail = exc.response.text if exc.response is not None else str(exc)
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        logger.exception("Failed to reach Crawler Backend at %s", url)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 # ── Endpoints ─────────────────────────────────────────────────────
 
 @router.post("/tasks", response_model=CrawlTaskItem)
 async def create_crawl_task(payload: CrawlTaskCreateRequest) -> CrawlTaskItem:
     """Create a new crawl task and dispatch it to the Crawler Backend."""
 
-    data = _crawler_post(
-        "crawl/tasks",
-        {
-            "name": payload.name,
-            "portal_url": payload.portal_url,
-            "query": payload.query,
-            "output_mode": payload.output_mode,
-        },
-    )
+    body: dict[str, Any] = {
+        "name": payload.name,
+        "portal_url": payload.portal_url,
+        "query": payload.query,
+        "output_mode": payload.output_mode,
+    }
+    if payload.json_schema is not None:
+        body["json_schema"] = payload.json_schema
+    if payload.storage_db_type:
+        body["storage_db_type"] = payload.storage_db_type
+
+    data = _crawler_post("crawl/tasks", body)
 
     # The crawler backend returns the created task directly
     return CrawlTaskItem(**data)
@@ -178,4 +199,78 @@ async def get_crawl_task_results(task_id: str) -> CrawlTaskResultsResponse:
     return CrawlTaskResultsResponse(
         items=items,
         total=len(items),
+    )
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_crawl_task(task_id: str):
+    """Cancel a running or pending crawl task."""
+    return _crawler_post(f"crawl/tasks/{task_id}/cancel", {})
+
+
+# ── Schedule proxy endpoints ─────────────────────────────────────────
+
+@router.post("/schedules")
+async def create_schedule(payload: dict[str, Any]):
+    """Create a new crawl schedule."""
+    return _crawler_post("schedules", payload)
+
+
+@router.get("/schedules")
+async def list_schedules():
+    """List all crawl schedules."""
+    return _crawler_get("schedules")
+
+
+@router.post("/schedules/{schedule_id}/pause")
+async def pause_schedule(schedule_id: str):
+    """Pause a crawl schedule."""
+    return _crawler_post(f"schedules/{schedule_id}/pause", {})
+
+
+@router.post("/schedules/{schedule_id}/resume")
+async def resume_schedule(schedule_id: str):
+    """Resume a crawl schedule."""
+    return _crawler_post(f"schedules/{schedule_id}/resume", {})
+
+
+@router.post("/schedules/{schedule_id}/run-once")
+async def run_schedule_once(schedule_id: str):
+    """Trigger a schedule to run immediately."""
+    return _crawler_post(f"schedules/{schedule_id}/run-once", {})
+
+
+@router.delete("/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    """Delete a crawl schedule."""
+    return _crawler_delete(f"schedules/{schedule_id}")
+
+
+@router.get("/tasks/{task_id}/download")
+async def download_crawl_task_files(task_id: str):
+    """Download crawl output files as a zip archive. Proxies the file stream from Crawler Backend."""
+
+    url = f"{CrawlerBackendURL}/api/v1/crawl/tasks/{task_id}/download"
+
+    try:
+        resp = requests.get(url, timeout=30, stream=True)
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else 500
+        detail = exc.response.text if exc.response is not None else str(exc)
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        logger.exception("Failed to download crawl files from Crawler Backend")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    content_disposition = resp.headers.get(
+        "Content-Disposition",
+        f'attachment; filename="task_{task_id}_outputs.zip"',
+    )
+
+    return StreamingResponse(
+        resp.iter_content(chunk_size=8192),
+        status_code=resp.status_code,
+        media_type=resp.headers.get("Content-Type", "application/zip"),
+        headers={"Content-Disposition": content_disposition},
     )

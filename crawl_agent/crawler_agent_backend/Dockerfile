@@ -49,8 +49,9 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Pre-install Playwright Chromium browser
-RUN npx --yes playwright install chromium
+# Pre-install Playwright browsers (both chromium and chrome-for-testing for MCP)
+RUN npx --yes playwright install chromium \
+    && npx --yes @playwright/mcp install-browser chrome-for-testing
 
 COPY . .
 

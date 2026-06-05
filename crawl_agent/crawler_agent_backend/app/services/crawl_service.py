@@ -38,27 +38,67 @@ class CrawlService:
         return sha256_text(f"{query}\n{schema_text}")
 
     @staticmethod
-    def _save_result_to_file(task_id: str, page_id: str, idx: int, extracted: dict) -> None:
+    def _save_result_to_file(task_id: str, page_id: str, idx: int, extracted: dict) -> dict:
+        """将抽取结果保存到本地 outputs/{task_id}/ 目录，返回保存路径信息。"""
         output_dir = Path("outputs") / task_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        result_type = extracted.get("result_type", "unknown")
+        paths: dict[str, str | None] = {
+            "html_path": None,
+            "markdown_path": None,
+            "markdown_ocr_path": None,
+            "json_path": None,
+        }
 
-        if result_type == "html" and extracted.get("result_html"):
-            file_path = output_dir / f"page_{idx + 1}.html"
-            file_path.write_text(extracted["result_html"], encoding="utf-8")
+        # 根据字段是否存在保存，不依赖 result_type
+        if extracted.get("result_html"):
+            p = output_dir / f"page_{idx + 1}.html"
+            p.write_text(extracted["result_html"], encoding="utf-8")
+            paths["html_path"] = str(p)
 
-        elif result_type == "markdown":
-            if extracted.get("result_markdown"):
-                file_path = output_dir / f"page_{idx + 1}.md"
-                file_path.write_text(extracted["result_markdown"], encoding="utf-8")
-            if extracted.get("result_markdown_ocr"):
-                file_path = output_dir / f"page_{idx + 1}_ocr.md"
-                file_path.write_text(extracted["result_markdown_ocr"], encoding="utf-8")
+        if extracted.get("result_markdown"):
+            p = output_dir / f"page_{idx + 1}.md"
+            p.write_text(extracted["result_markdown"], encoding="utf-8")
+            paths["markdown_path"] = str(p)
 
-        elif result_type == "json" and extracted.get("result_json"):
-            file_path = output_dir / f"page_{idx + 1}.json"
-            file_path.write_text(json.dumps(extracted["result_json"], ensure_ascii=False, indent=2), encoding="utf-8")
+        if extracted.get("result_markdown_ocr"):
+            p = output_dir / f"page_{idx + 1}_ocr.md"
+            p.write_text(extracted["result_markdown_ocr"], encoding="utf-8")
+            paths["markdown_ocr_path"] = str(p)
+
+        if extracted.get("result_json") is not None:
+            p = output_dir / f"page_{idx + 1}.json"
+            p.write_text(json.dumps(extracted["result_json"], ensure_ascii=False, indent=2), encoding="utf-8")
+            paths["json_path"] = str(p)
+
+        return paths
+
+    @staticmethod
+    def _update_manifest(task_id: str, page_id: str, idx: int, url: str, title: str, extracted: dict, paths: dict) -> None:
+        """更新 outputs/{task_id}/manifest.json，追加当前页面信息。"""
+        import json as _json
+        manifest_path = Path("outputs") / task_id / "manifest.json"
+
+        entry = {
+            "page_id": page_id,
+            "index": idx + 1,
+            "url": url,
+            "title": title,
+            "result_type": extracted.get("result_type"),
+            **paths,
+        }
+
+        manifest = {"task_id": task_id, "pages": []}
+        if manifest_path.exists():
+            try:
+                existing = _json.loads(manifest_path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict) and isinstance(existing.get("pages"), list):
+                    manifest = existing
+            except Exception:
+                pass
+
+        manifest["pages"].append(entry)
+        manifest_path.write_text(_json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _load_schedule_position_caches(self, schedule_id: str, query_signature: str) -> list[dict[str, Any]]:
         rows = self.db.scalars(
@@ -399,20 +439,28 @@ class CrawlService:
                                     position_cache_entries=position_cache_entries,
                                 )
 
+                    # 兜底 result_type
+                    output_mode_value = task.output_mode.value if hasattr(task.output_mode, "value") else str(task.output_mode)
+                    if not extracted.get("result_type"):
+                        extracted["result_type"] = output_mode_value
+
+                    # 始终写入数据库
+                    result_row = CrawlResult(
+                        task_id=task.id,
+                        page_id=page_row.id,
+                        result_type=extracted.get("result_type"),
+                        result_json=extracted.get("result_json"),
+                        result_markdown=extracted.get("result_markdown"),
+                        result_markdown_ocr=extracted.get("result_markdown_ocr"),
+                    )
+                    self.db.add(result_row)
+
                     use_file_output = not storage_db_type_override
                     if use_file_output:
-                        self._save_result_to_file(task.id, page_row.id, idx, extracted)
+                        # 本地文件保存 + manifest
+                        paths = self._save_result_to_file(task.id, page_row.id, idx, extracted)
+                        self._update_manifest(task.id, page_row.id, idx, url, title or "", extracted, paths)
                     else:
-                        result_row = CrawlResult(
-                            task_id=task.id,
-                            page_id=page_row.id,
-                            result_type=extracted["result_type"],
-                            result_json=extracted.get("result_json"),
-                            result_markdown=extracted.get("result_markdown"),
-                            result_markdown_ocr=extracted.get("result_markdown_ocr"),
-                        )
-                        self.db.add(result_row)
-
                         storage_service.write_to_external_storage(
                             storage_db_type_override=storage_db_type_override,
                             task_id=task.id,

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import zipfile
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -144,3 +148,41 @@ def cancel_task(task_id: str, db: Session = Depends(get_db)):
     task.status = TaskStatus.CANCELED
     db.commit()
     return APIMessage(message="task marked as canceled")
+
+
+@router.get("/{task_id}/download")
+def download_task_files(task_id: str, db: Session = Depends(get_db)):
+    """Download crawl output files for a completed task as a zip archive."""
+
+    task = db.get(CrawlTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    output_dir = Path("outputs") / task_id
+    if not output_dir.exists() or not output_dir.is_dir():
+        raise HTTPException(status_code=404, detail="No output files found for this task.")
+
+    # Collect all files under outputs/{task_id}/
+    file_paths: list[Path] = []
+    for entry in output_dir.rglob("*"):
+        if entry.is_file():
+            file_paths.append(entry)
+
+    if not file_paths:
+        raise HTTPException(status_code=404, detail="No output files found for this task.")
+
+    # Build zip in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file_path in sorted(file_paths):
+            arcname = file_path.relative_to(output_dir)
+            zf.write(file_path, arcname=str(arcname))
+
+    zip_buffer.seek(0)
+
+    filename = f"task_{task_id}_outputs.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

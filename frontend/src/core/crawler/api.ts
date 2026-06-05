@@ -93,3 +93,60 @@ export async function getCrawlTaskResults(
 
   return response.json() as Promise<CrawlTaskResultsResponse>;
 }
+
+// ── Schedule API ────────────────────────────────────────────────
+
+export interface ScheduleItem {
+  id: string;
+  name: string;
+  schedule_type: string;
+  interval_seconds: number | null;
+  interval_minutes: number | null;
+  timezone: string;
+  payload: Record<string, unknown>;
+  status: "ACTIVE" | "PAUSED";
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
+
+export interface ScheduleListResponse {
+  items: ScheduleItem[];
+  total: number;
+}
+
+export async function createSchedule(payload: Record<string, unknown>): Promise<ScheduleItem> {
+  const response = await fetch(`${BASE}/schedules`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to create schedule"));
+  return response.json() as Promise<ScheduleItem>;
+}
+
+export async function listSchedules(): Promise<ScheduleListResponse> {
+  const response = await fetch(`${BASE}/schedules`);
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to list schedules"));
+  return response.json() as Promise<ScheduleListResponse>;
+}
+
+export async function pauseSchedule(scheduleId: string): Promise<void> {
+  const response = await fetch(`${BASE}/schedules/${scheduleId}/pause`, { method: "POST" });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to pause schedule"));
+}
+
+export async function resumeSchedule(scheduleId: string): Promise<void> {
+  const response = await fetch(`${BASE}/schedules/${scheduleId}/resume`, { method: "POST" });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to resume schedule"));
+}
+
+export async function cancelCrawlTask(taskId: string): Promise<void> {
+  const response = await fetch(`${BASE}/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to cancel task"));
+}
+
+export async function deleteSchedule(scheduleId: string): Promise<void> {
+  const response = await fetch(`${BASE}/schedules/${scheduleId}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to delete schedule"));
+}

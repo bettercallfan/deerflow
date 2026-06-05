@@ -1,7 +1,9 @@
 """The main entry point of the browser agent example."""
 import asyncio
+import glob
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, Field
 
@@ -52,13 +54,21 @@ async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str
     # Setup toolkit with browser tools from MCP server
     toolkit = Toolkit()
     register_browser_tools(toolkit)
+    # 动态查找最新版 Chromium，避免硬编码版本号导致容器重建后路径失效
+    _browsers_root = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/ms-playwright"))
+    _chromium_dirs = sorted(
+        [p for p in _browsers_root.glob("chromium-*") if (p / "chrome-linux64" / "chrome").exists()],
+        reverse=True,
+    )
+    _chromium_path = str(_chromium_dirs[0] / "chrome-linux64" / "chrome") if _chromium_dirs else ""
+
     browser_client = StdIOStatefulClient(
         name="playwright-mcp",
         command="npx",
         args=[
             "@playwright/mcp@latest",
             "--browser", "chrome",
-            "--executable-path", os.environ.get("PLAYWRIGHT_CHROMIUM_PATH", "/ms-playwright/chromium-1224/chrome-linux64/chrome"),
+            "--executable-path", _chromium_path,
             "--no-sandbox",
             "--isolated",
         ],

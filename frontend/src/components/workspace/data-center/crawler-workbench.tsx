@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   BotIcon,
   ClockIcon,
+  DownloadIcon,
   FileTextIcon,
   PlayIcon,
   RefreshCwIcon,
@@ -24,9 +25,10 @@ import {
 import {
   useCreateCrawlTask,
   useCrawlTaskResults,
+  createSchedule,
+  cancelCrawlTask,
   type CrawlTaskItem,
   type OutputMode,
-  type StorageTarget,
 } from "@/core/crawler";
 import { cn } from "@/lib/utils";
 
@@ -72,18 +74,6 @@ function getStorageText(storageDbType?: string | null) {
   if (storageDbType === "mysql") return "MySQL";
   if (storageDbType === "milvus") return "Milvus";
   return "本地文件";
-}
-
-function getStorageDescription(storageTarget: StorageTarget) {
-  if (storageTarget === "mysql") {
-    return "MySQL 模式下，爬取结果将写入已配置的 MySQL 存储，请确保 MySQL 存储配置已完成。";
-  }
-
-  if (storageTarget === "milvus") {
-    return "Milvus 模式下，爬取结果将写入已配置的 Milvus 向量库，请确保 Milvus 存储配置已完成。";
-  }
-
-  return "本地文件模式下，爬取结果将保存到 crawler-backend 的 outputs 目录，并同步写入任务结果数据库。";
 }
 
 function getStatusClassName(status?: CrawlTaskItem["status"]) {
@@ -151,6 +141,52 @@ function ModelCard({
 function ResultPreview({ selectedTask }: { selectedTask: CrawlTaskItem | null }) {
   const resultsQuery = useCrawlTaskResults(selectedTask?.id);
   const results = resultsQuery.data?.items ?? [];
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const canDownload = Boolean(
+    selectedTask && (selectedTask.status === "SUCCEEDED" || results.length > 0),
+  );
+
+  const handleDownload = async () => {
+    if (!selectedTask) {
+      toast.info("请先选择一个爬取任务");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      const response = await fetch(
+        `/api/data-center/crawler/tasks/${selectedTask.id}/download`,
+      );
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const safeTaskName = (selectedTask.name || selectedTask.id).replace(
+        /[\/:*?"<>|]+/g,
+        "_",
+      );
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${safeTaskName}_outputs.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "下载本次爬取文件失败",
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border bg-background p-5 shadow-sm">
@@ -159,9 +195,29 @@ function ResultPreview({ selectedTask }: { selectedTask: CrawlTaskItem | null })
           <FileTextIcon className="size-4" />
           结果预览
         </div>
-        <span className="text-xs text-muted-foreground">
-          {selectedTask ? `${results.length} 条结果` : "暂无任务"}
-        </span>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {selectedTask ? `${results.length} 条结果` : "暂无任务"}
+          </span>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDownload()}
+            disabled={!canDownload || isDownloading}
+            title={
+              canDownload
+                ? "下载该任务本次爬取生成的文件"
+                : "任务完成或生成结果后可下载文件"
+            }
+            className="h-8 whitespace-nowrap"
+          >
+            <DownloadIcon className="mr-1.5 size-3.5" />
+            {isDownloading ? "下载中..." : "下载本次爬取文件"}
+          </Button>
+        </div>
       </div>
 
       {!selectedTask ? (
@@ -230,6 +286,23 @@ function CurrentTaskSidePanel({
   selectedTask: CrawlTaskItem | null;
   onRefresh: () => void;
 }) {
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (!selectedTask) return;
+    try {
+      setIsCancelling(true);
+      await cancelCrawlTask(selectedTask.id);
+      toast.success("任务已取消");
+      onRefresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "取消任务失败");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const canCancel = selectedTask && (selectedTask.status === "PENDING" || selectedTask.status === "RUNNING");
   return (
     <aside className="flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l bg-background/60">
       <div className="shrink-0 border-b px-5 py-5">
@@ -328,8 +401,13 @@ function CurrentTaskSidePanel({
                 <RefreshCwIcon className="mr-2 size-4" />
                 刷新任务
               </Button>
-              <Button className="w-full" variant="outline" disabled>
-                取消任务
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => void handleCancel()}
+                disabled={!canCancel || isCancelling}
+              >
+                {isCancelling ? "取消中..." : "取消任务"}
               </Button>
               <Button className="w-full" variant="outline" disabled>
                 重新运行
@@ -354,11 +432,10 @@ export function CrawlerWorkbench({
   const [portalUrl, setPortalUrl] = useState("");
   const [query, setQuery] = useState("");
   const [outputMode, setOutputMode] = useState<OutputMode>("html");
-  const [storageTarget, setStorageTarget] = useState<StorageTarget>("local");
   const [jsonSchemaText, setJsonSchemaText] = useState("");
 
-  const [scheduleFrequency, setScheduleFrequency] = useState("daily");
-  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const [scheduleHours, setScheduleHours] = useState(0);
+  const [scheduleMinutes, setScheduleMinutes] = useState(60);
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
 
   const canSubmit = useMemo(() => {
@@ -369,7 +446,32 @@ export function CrawlerWorkbench({
     if (!canSubmit) return;
 
     if (mode === "schedule") {
-      toast.info("定时爬取接口接入 Gateway 后，可在这里创建调度任务");
+      try {
+        await createSchedule({
+          name: name.trim(),
+          schedule_type: "interval",
+          interval_hours: scheduleHours,
+          interval_minutes: scheduleMinutes,
+          timezone: "Asia/Shanghai",
+          enabled: scheduleEnabled,
+          payload: {
+            name: name.trim(),
+            portal_url: portalUrl.trim(),
+            query: query.trim(),
+            output_mode: outputMode,
+            storage_db_type: null,
+          },
+        });
+
+        toast.success("定时任务已创建");
+        setName("");
+        setPortalUrl("");
+        setQuery("");
+        setOutputMode("html");
+        setJsonSchemaText("");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "创建定时任务失败");
+      }
       return;
     }
 
@@ -392,7 +494,7 @@ export function CrawlerWorkbench({
         portal_url: portalUrl.trim(),
         query: query.trim(),
         output_mode: outputMode,
-        storage_db_type: storageTarget === "local" ? null : storageTarget,
+        storage_db_type: null,
         json_schema: parsedJsonSchema,
       });
 
@@ -401,7 +503,6 @@ export function CrawlerWorkbench({
       setPortalUrl("");
       setQuery("");
       setOutputMode("html");
-      setStorageTarget("local");
       setJsonSchemaText("");
 
       onSelectTask(task);
@@ -418,7 +519,7 @@ export function CrawlerWorkbench({
           <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
             <ModelCard
               title="Agent 导航模型"
-              description="负责根据自然语言需求进行网页导航和页面探索。"
+              description="负责根据自然语言需求进行网页导航。"
               modelName="qwen3.5-35b-a3b"
             />
             <ModelCard
@@ -515,25 +616,6 @@ export function CrawlerWorkbench({
                 </Select>
               </div>
 
-              <div className="space-y-2.5">
-                <label className="text-sm font-medium">保存位置</label>
-                <Select
-                  value={storageTarget}
-                  onValueChange={(value) => setStorageTarget(value as StorageTarget)}
-                >
-                  <SelectTrigger className="w-[170px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="local">本地文件</SelectItem>
-                    <SelectItem value="mysql">MySQL</SelectItem>
-                    <SelectItem value="milvus">Milvus</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="max-w-[420px] text-xs leading-5 text-muted-foreground">
-                  {getStorageDescription(storageTarget)}
-                </div>
-              </div>
 
               {outputMode === "json" && (
                 <div className="space-y-2.5 lg:col-span-2">
@@ -557,29 +639,34 @@ export function CrawlerWorkbench({
               {mode === "schedule" && (
                 <>
                   <div className="space-y-2.5">
-                    <label className="text-sm font-medium">执行频率</label>
-                    <Select
-                      value={scheduleFrequency}
-                      onValueChange={setScheduleFrequency}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">每天</SelectItem>
-                        <SelectItem value="weekly">每周</SelectItem>
-                        <SelectItem value="cron">Cron 表达式</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <label className="text-sm font-medium">执行时间</label>
-                    <Input
-                      value={scheduleTime}
-                      onChange={(event) => setScheduleTime(event.target.value)}
-                      placeholder="09:00"
-                    />
+                    <label className="text-sm font-medium">执行间隔</label>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={scheduleHours}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          if (v >= 0) setScheduleHours(v);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-muted-foreground">小时</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={scheduleMinutes}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10) || 0;
+                          if (v >= 0) setScheduleMinutes(v);
+                        }}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-muted-foreground">分钟</span>
+                    </div>
+                    {scheduleHours === 0 && scheduleMinutes === 0 && (
+                      <p className="text-xs text-red-500">小时和分钟不能同时为 0</p>
+                    )}
                   </div>
 
                   <div className="flex items-end">

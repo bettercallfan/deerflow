@@ -213,7 +213,13 @@ class ScheduleService:
         if schedule is None:
             return False
         self._ensure_payload_ready(schedule.payload)
-        scheduler.add_job(run_schedule_job, args=[schedule_id])
+        # 用 asyncio.ensure_future 确保在当前事件循环中立即执行，避免 APScheduler add_job 异步调度延迟
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(run_schedule_job(schedule_id))
+        except RuntimeError:
+            # 没有运行中的事件循环时，退回到 scheduler
+            scheduler.add_job(run_schedule_job, args=[schedule_id])
         return True
 
     def delete(self, schedule_id: str) -> bool:
