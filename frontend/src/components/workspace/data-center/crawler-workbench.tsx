@@ -27,9 +27,17 @@ import {
   useCrawlTaskResults,
   createSchedule,
   cancelCrawlTask,
+  listModelConfigs,
+  listSchedules,
+  pauseSchedule,
+  resumeSchedule,
+  deleteSchedule,
   type CrawlTaskItem,
+  type ModelConfigItem,
   type OutputMode,
+  type ScheduleItem,
 } from "@/core/crawler";
+import { ModelConfigDialog } from "./model-config-dialog";
 import { cn } from "@/lib/utils";
 
 interface CrawlerWorkbenchProps {
@@ -89,10 +97,14 @@ function ModelCard({
   title,
   description,
   modelName,
+  isConfigured,
+  onEdit,
 }: {
   title: string;
   description: string;
   modelName: string;
+  isConfigured: boolean;
+  onEdit: () => void;
 }) {
   return (
     <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -109,8 +121,14 @@ function ModelCard({
           </div>
         </div>
 
-        <span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-700">
-          已配置
+        <span
+          className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
+            isConfigured
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-yellow-200 bg-yellow-50 text-yellow-700"
+          }`}
+        >
+          {isConfigured ? "已配置" : "未配置"}
         </span>
       </div>
 
@@ -130,7 +148,7 @@ function ModelCard({
         variant="outline"
         size="sm"
         className="mt-4 w-full"
-        onClick={() => toast.info("模型配置接口接入 Gateway 后可在这里编辑保存")}
+        onClick={onEdit}
       >
         编辑配置
       </Button>
@@ -438,6 +456,29 @@ export function CrawlerWorkbench({
   const [scheduleMinutes, setScheduleMinutes] = useState(60);
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
 
+  const [modelConfigs, setModelConfigs] = useState<ModelConfigItem[]>([]);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<ModelConfigItem | null>(null);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+
+  const loadModelConfigs = async () => {
+    try { const data = await listModelConfigs(); setModelConfigs(data.items); } catch { /* 静默 */ }
+  };
+  const loadSchedules = async () => {
+    try { const data = await listSchedules(); setSchedules(data.items); } catch { /* 静默 */ }
+  };
+  useState(() => { void loadModelConfigs(); void loadSchedules(); });
+
+  const handlePauseSchedule = async (id: string) => {
+    try { await pauseSchedule(id); toast.success("已暂停"); void loadSchedules(); onRefresh(); } catch { toast.error("暂停失败"); }
+  };
+  const handleResumeSchedule = async (id: string) => {
+    try { await resumeSchedule(id); toast.success("已恢复"); void loadSchedules(); } catch { toast.error("恢复失败"); }
+  };
+  const handleDeleteSchedule = async (id: string) => {
+    try { await deleteSchedule(id); toast.success("已删除"); setSchedules((s) => s.filter((x) => x.id !== id)); onRefresh(); } catch { toast.error("删除失败"); }
+  };
+
   const canSubmit = useMemo(() => {
     return Boolean(name.trim() && portalUrl.trim() && query.trim());
   }, [name, portalUrl, query]);
@@ -469,6 +510,8 @@ export function CrawlerWorkbench({
         setQuery("");
         setOutputMode("html");
         setJsonSchemaText("");
+        void loadSchedules();
+        onRefresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "创建定时任务失败");
       }
@@ -516,17 +559,67 @@ export function CrawlerWorkbench({
     <div className="flex h-full min-h-0">
       <div className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-6">
         <div className="mx-auto max-w-5xl space-y-5">
+          {schedules.length > 0 && (
+            <div className="rounded-2xl border bg-background p-5 shadow-sm">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <ClockIcon className="size-4" />
+                定时任务管理
+                <span className="text-xs text-muted-foreground">({schedules.length} 个)</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {schedules.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between rounded-xl border px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{s.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {s.status === "ACTIVE" ? "运行中" : "已暂停"}
+                        {" · "}
+                        {s.interval_minutes
+                          ? `每 ${s.interval_minutes} 分钟`
+                          : s.interval_seconds
+                            ? `每 ${Math.round(s.interval_seconds / 60)} 分钟`
+                            : ""}
+                        {s.next_run_at ? ` · 下次: ${new Date(s.next_run_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                      </div>
+                    </div>
+                    <div className="ml-3 flex shrink-0 gap-1.5">
+                      {s.status === "ACTIVE" ? (
+                        <Button size="sm" variant="outline" onClick={() => handlePauseSchedule(s.id)}>
+                          暂停
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => handleResumeSchedule(s.id)}>
+                          恢复
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteSchedule(s.id)}>
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-            <ModelCard
-              title="Agent 导航模型"
-              description="负责根据自然语言需求进行网页导航。"
-              modelName="qwen3.5-35b-a3b"
-            />
-            <ModelCard
-              title="单页面信息抽取模型"
-              description="负责对单个页面进行结构化内容提取。"
-              modelName="qwen-plus"
-            />
+            {modelConfigs.map((cfg) => (
+              <ModelCard
+                key={cfg.target}
+                title={cfg.label}
+                description={
+                  cfg.target === "crawler_agent"
+                    ? "负责根据自然语言需求进行网页导航。"
+                    : "负责对单个页面进行结构化内容提取。"
+                }
+                modelName={cfg.model_name ?? "未配置"}
+                isConfigured={cfg.is_configured}
+                onEdit={() => {
+                  setEditingConfig(cfg);
+                  setConfigDialogOpen(true);
+                }}
+              />
+            ))}
           </div>
 
           <div className="rounded-2xl border bg-background p-5 shadow-sm">
@@ -714,6 +807,13 @@ export function CrawlerWorkbench({
       </div>
 
       <CurrentTaskSidePanel selectedTask={selectedTask} onRefresh={onRefresh} />
+
+      <ModelConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        config={editingConfig}
+        onSaved={() => void loadModelConfigs()}
+      />
     </div>
   );
 }

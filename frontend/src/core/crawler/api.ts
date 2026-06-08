@@ -141,6 +141,41 @@ export async function resumeSchedule(scheduleId: string): Promise<void> {
   if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to resume schedule"));
 }
 
+// ── Model config API ──────────────────────────────────────────────
+
+export interface ModelConfigItem {
+  target: string;
+  label: string;
+  has_api_key: boolean;
+  base_url: string | null;
+  model_name: string | null;
+  is_configured: boolean;
+  missing_fields: string[];
+}
+
+export interface ModelConfigListResponse {
+  items: ModelConfigItem[];
+}
+
+export async function listModelConfigs(): Promise<ModelConfigListResponse> {
+  const response = await fetch(`${BASE}/model-configs`);
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to list model configs"));
+  return response.json() as Promise<ModelConfigListResponse>;
+}
+
+export async function upsertModelConfig(
+  target: string,
+  payload: { api_key?: string; base_url: string; model_name: string },
+): Promise<ModelConfigItem> {
+  const response = await fetch(`${BASE}/model-configs/${target}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to update model config"));
+  return response.json() as Promise<ModelConfigItem>;
+}
+
 export async function cancelCrawlTask(taskId: string): Promise<void> {
   const response = await fetch(`${BASE}/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" });
   if (!response.ok) throw new Error(await readErrorDetail(response, "Failed to cancel task"));

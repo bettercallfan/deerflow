@@ -114,6 +114,21 @@ def _crawler_post(path: str, json_body: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+def _crawler_put(path: str, json_body: dict[str, Any]) -> dict[str, Any]:
+    url = f"{CrawlerBackendURL}/api/v1/{path.lstrip('/')}"
+    try:
+        resp = requests.put(url, json=json_body, timeout=20)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else 500
+        detail = exc.response.text if exc.response is not None else str(exc)
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except Exception as exc:
+        logger.exception("Failed to reach Crawler Backend at %s", url)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 def _crawler_delete(path: str) -> dict[str, Any]:
     url = f"{CrawlerBackendURL}/api/v1/{path.lstrip('/')}"
     try:
@@ -200,6 +215,20 @@ async def get_crawl_task_results(task_id: str) -> CrawlTaskResultsResponse:
         items=items,
         total=len(items),
     )
+
+
+# ── Model config proxy endpoints ──────────────────────────────────────
+
+@router.get("/model-configs")
+async def list_model_configs():
+    """List crawler model configs (crawler_agent + recursive_acquisition)."""
+    return _crawler_get("model-configs")
+
+
+@router.put("/model-configs/{target}")
+async def upsert_model_config(target: str, payload: dict[str, Any]):
+    """Update a crawler model config (crawler_agent or recursive_acquisition)."""
+    return _crawler_put(f"model-configs/{target}", payload)
 
 
 @router.post("/tasks/{task_id}/cancel")

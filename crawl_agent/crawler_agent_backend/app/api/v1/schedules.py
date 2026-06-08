@@ -50,7 +50,7 @@ def _to_schedule_read(row) -> ScheduleRead:
 
 
 @router.post("", response_model=ScheduleRead)
-def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)):
+async def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)):
     svc = ScheduleService(db)
     try:
         row = svc.create_schedule(payload.model_dump())
