@@ -1,0 +1,28 @@
+{
+  "name": "code_snippet",
+  "version": "1.0",
+  "definition": {
+    "zh": "代码片段是可被静态分析、标准化、语义标注和组件封装的一小段源代码。它通常不要求是完整项目文件，但必须保留足够上下文，使系统能够识别语言、意图、输入变量、输出变量和可复用接口。",
+    "scope": [
+      "单个函数或类定义",
+      "一段可被包装为函数的语句序列",
+      "用于检索、解释、转换或封装的局部源码"
+    ],
+    "constraints": [
+      "raw_code 必须是非空字符串",
+      "language 用于说明代码语言，当前流水线主要面向 python",
+      "静态分析阶段不执行代码",
+      "如果 raw_code 不是顶层函数或类定义，可以先标准化为 generated_function"
+    ]
+  },
+  "examples": {
+    "raw_snippet": {
+      "language": "python",
+      "raw_code": "total = price * quantity"
+    },
+    "normalized_snippet": {
+      "language": "python",
+      "normalized_code": "def generated_function(price, quantity):\n    total = price * quantity\n    return total"
+    }
+  }
+}

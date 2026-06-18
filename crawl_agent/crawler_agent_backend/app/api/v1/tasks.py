@@ -158,15 +158,24 @@ def download_task_files(task_id: str, db: Session = Depends(get_db)):
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
 
-    output_dir = Path("outputs") / task_id
-    if not output_dir.exists() or not output_dir.is_dir():
-        raise HTTPException(status_code=404, detail="No output files found for this task.")
-
-    # Collect all files under outputs/{task_id}/
+    # Collect all files
     file_paths: list[Path] = []
-    for entry in output_dir.rglob("*"):
-        if entry.is_file():
-            file_paths.append(entry)
+
+    # outputs/{task_id}/
+    output_dir = Path("outputs") / task_id
+    if output_dir.exists() and output_dir.is_dir():
+        for entry in output_dir.rglob("*"):
+            if entry.is_file():
+                file_paths.append(entry)
+
+    # Agent 使用 download_file 工具下载的文件
+    # 优先查任务专属目录 outputs/{task_id}/downloads/，再查全局 downloads/
+    task_dl_dir = output_dir / "downloads"
+    for dl_dir in (task_dl_dir, Path("downloads")):
+        if dl_dir.exists() and dl_dir.is_dir():
+            for entry in dl_dir.rglob("*"):
+                if entry.is_file():
+                    file_paths.append(entry)
 
     if not file_paths:
         raise HTTPException(status_code=404, detail="No output files found for this task.")
@@ -175,8 +184,12 @@ def download_task_files(task_id: str, db: Session = Depends(get_db)):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for file_path in sorted(file_paths):
-            arcname = file_path.relative_to(output_dir)
-            zf.write(file_path, arcname=str(arcname))
+            try:
+                arcname = str(file_path.relative_to(output_dir))
+            except ValueError:
+                # 文件不在 outputs/{task_id}/ 下（如 Agent 下载的），放在 downloads/ 子目录
+                arcname = f"downloads/{file_path.name}"
+            zf.write(file_path, arcname=arcname)
 
     zip_buffer.seek(0)
 

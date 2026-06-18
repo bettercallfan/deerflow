@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.cache/
+uploads/
+output/
+input/
+frontend/node_modules/
+model/

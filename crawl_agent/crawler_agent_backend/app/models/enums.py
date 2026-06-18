@@ -24,6 +24,7 @@ class OutputMode(str, Enum):
     JSON = "json"
     MARKDOWN = "markdown"
     HTML = "html"
+    DOWNLOAD = "download"
 
 
 class StorageConfigType(str, Enum):

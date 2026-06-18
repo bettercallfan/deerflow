@@ -372,7 +372,7 @@ async def download_file(
     url: str,
     save_dir: str = "./downloads",
     filename: Optional[str] = None,
-    max_bytes: int = 30 * 1024 * 1024,
+    max_bytes: int = 500 * 1024 * 1024,
 ) -> ToolResponse:
     """{下载文件到本地，优先复用当前浏览器会话以支持登录态下载}
 

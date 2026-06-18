@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/data-center/crawler", tags=["crawler"])
 
 CrawlerBackendURL = os.getenv("CRAWLER_BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
-OutputMode = Literal["html", "markdown", "json"]
+OutputMode = Literal["html", "markdown", "json", "download"]
 TaskStatus = Literal["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELED", "SKIPPED_NO_CHANGE"]
 
 
@@ -30,6 +30,7 @@ class CrawlTaskCreateRequest(BaseModel):
     output_mode: OutputMode = Field(default="html", description="Output format: html, markdown, or json")
     json_schema: dict | list | None = Field(default=None, description="JSON schema for structured extraction (json mode only)")
     storage_db_type: str | None = Field(default=None, description="External storage target: mysql, milvus, or null for local")
+    max_iterations: int = Field(default=10, ge=1, le=100, description="BrowserAgent max navigation steps")
 
 
 # ── Response schemas ─────────────────────────────────────────────
@@ -40,6 +41,7 @@ class CrawlTaskItem(BaseModel):
     portal_url: str
     query: str
     output_mode: OutputMode
+    max_iterations: int = 10
     status: TaskStatus
     progress: int = 0
     source: str = "manual"
@@ -155,6 +157,7 @@ async def create_crawl_task(payload: CrawlTaskCreateRequest) -> CrawlTaskItem:
         "portal_url": payload.portal_url,
         "query": payload.query,
         "output_mode": payload.output_mode,
+        "max_iterations": payload.max_iterations,
     }
     if payload.json_schema is not None:
         body["json_schema"] = payload.json_schema

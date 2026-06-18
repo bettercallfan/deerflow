@@ -19,6 +19,7 @@ class CrawlTask(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     output_mode: Mapped[OutputMode] = mapped_column(Enum(OutputMode), nullable=False)
     json_schema: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    max_iterations: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
 
     status: Mapped[TaskStatus] = mapped_column(Enum(TaskStatus), nullable=False, default=TaskStatus.PENDING)
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

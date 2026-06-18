@@ -13,6 +13,7 @@ class CrawlTaskCreate(BaseModel):
     output_mode: OutputMode = OutputMode.JSON
     json_schema: dict | list | None = None
     storage_db_type: StorageConfigType | None = None
+    max_iterations: int = Field(default=10, ge=1, le=100, description="BrowserAgent max navigation steps")
 
     dedup_enabled: bool = True
     dedup_scope: str = "global"
@@ -32,6 +33,7 @@ class CrawlTaskRead(BaseModel):
     portal_url: str
     query: str
     output_mode: OutputMode
+    max_iterations: int = 10
     status: TaskStatus
     progress: int
     source: str

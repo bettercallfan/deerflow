@@ -6,7 +6,7 @@ export type CrawlTaskStatus =
   | "CANCELED"
   | "SKIPPED_NO_CHANGE";
 
-export type OutputMode = "html" | "markdown" | "json";
+export type OutputMode = "html" | "markdown" | "json" | "download";
 
 /**
  * 后端 storage_db_type 语义：
@@ -36,6 +36,7 @@ export interface CrawlTaskCreatePayload {
   output_mode: OutputMode;
   storage_db_type?: StorageDbType | null;
   json_schema?: Record<string, unknown> | unknown[] | null;
+  max_iterations?: number;
 }
 
 export interface CrawlTaskItem {
@@ -45,6 +46,7 @@ export interface CrawlTaskItem {
   query: string;
   output_mode: OutputMode;
   storage_db_type?: StorageDbType | null;
+  max_iterations?: number;
   status: CrawlTaskStatus;
   progress: number;
   source: string;

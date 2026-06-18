@@ -37,10 +37,11 @@ async def collect_pages(
     query: str,
     portal_url: str,
     model_config: dict[str, str] | None = None,
+    max_iters: int = 10,
 ) -> list[dict[str, Any]]:
-    pages = await browse_page(query, portal_url, model_config=model_config)
+    pages = await browse_page(query, portal_url, model_config=model_config, max_iters=max_iters)
     sanitized = []
-    for page in pages:
+    for page in (pages or []):
         sanitized.append(
             {
                 "url": page.get("url", ""),
@@ -58,8 +59,9 @@ def collect_pages_sync(
     query: str,
     portal_url: str,
     model_config: dict[str, str] | None = None,
+    max_iters: int = 10,
 ) -> list[dict[str, Any]]:
-    return asyncio.run(collect_pages(query=query, portal_url=portal_url, model_config=model_config))
+    return asyncio.run(collect_pages(query=query, portal_url=portal_url, model_config=model_config, max_iters=max_iters))
 
 
 def extract_html(url: str, html: str) -> dict[str, Any]:

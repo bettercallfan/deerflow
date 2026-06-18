@@ -126,3 +126,25 @@ crawl_agent/**/*.pyc
 logs/
 *.log
 .cache/
+
+# Document parser runtime files
+document-parse/model/
+document-parse/uploads/
+document-parse/output/
+document-parse/input/
+document-parse/pre/input/
+document-parse/.venv/
+document-parse/.cache/
+
+# Document parser demo frontend build output
+document-parse/frontend/dist/
+document-parse/frontend/node_modules/
+
+# Runtime temporary files
+result.md
+task_*_outputs.zip
+crawl_agent/crawler_agent_backend/current_page_snapshot.md
+crawl_agent/crawler_agent_backend/page_snapshot.md
+
+# Vim swap files
+*.swp

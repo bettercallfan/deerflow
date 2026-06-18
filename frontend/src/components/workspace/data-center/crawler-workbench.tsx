@@ -46,7 +46,279 @@ interface CrawlerWorkbenchProps {
   onRefresh: () => void;
 }
 
-type CrawlMode = "manual" | "schedule";
+type WorkMode = "manual" | "schedule";
+type CrawlMode = "general" | "policy_regulation" | "code_snippet" | "video_surveillance";
+
+const POLICY_REGULATION_SCHEMA = {
+  type: "object",
+  required: ["items"],
+  properties: {
+    items: {
+      type: "array",
+      description:
+        "从网页中抽取的法条列表。每一条对应一个独立法条。如果页面是法律全文页，必须逐条拆分。注意：章节标题（第X章、第X节）出现在该章节第一条之前，必须把每个法条所属的编/章/节信息填入 metadata 的对应字段。不要因为章节标题不是法条就忽略它。",
+      items: {
+        type: "object",
+        required: ["law_name", "content"],
+        properties: {
+          // ── 基本信息（必须填写）──
+          law_name: {
+            type: "string",
+            description:
+              "法律文件全称，例如 中华人民共和国宪法修正案（2018年）、中华人民共和国个人信息保护法。同一条法律的多个法条必须使用相同的 law_name。",
+          },
+          title: {
+            type: "string",
+            description:
+              "法条标题，格式: {law_name} {article_no}，例如 中华人民共和国宪法修正案（2018年） 第三十二条。",
+          },
+          article_no: {
+            type: "string",
+            description:
+              "法条编号，例如 第一条、第三十二条、第1条。必须从页面原文提取，不要编造。如果该条无序号，填写整个法律的名称作为兜底。",
+          },
+          article_number: {
+            type: "integer",
+            description:
+              "法条数字编号，例如 32。用于排序。如果 article_no 无法转换为数字，填 0。",
+          },
+
+          // ── 发布机关（同一条法律所有法条共用）──
+          office: {
+            type: "string",
+            description:
+              "发布机关全称，例如 全国人民代表大会、国务院、武汉市人民代表大会常务委员会。",
+          },
+          office_level: {
+            type: "string",
+            description:
+              "机关层级，例如 全国人民代表大会、国务院、部委、省级、市级。",
+          },
+          office_category: {
+            type: "string",
+            description:
+              "机关类别，例如 人民代表大会、行政机关、司法机关。",
+          },
+
+          // ── 时效性（同一条法律所有法条共用）──
+          publish_date: {
+            type: "string",
+            description:
+              "发布日期，格式 YYYY-MM-DD。如果页面只显示年份，填 YYYY-01-01。",
+          },
+          effective_date: {
+            type: "string",
+            description:
+              "生效日期，格式 YYYY-MM-DD。如果页面未明确给出，填 null。",
+          },
+          effective_period: {
+            type: ["string", "null"],
+            description:
+              "生效时间段，格式 起始年份_结束年份，例如 2000_2020。仅在页面明确标注时填写，否则 null。",
+          },
+          validity_status: {
+            type: "string",
+            description:
+              "效力状态：有效、已废止、已修改、尚未生效、部分失效。如果 effective_date 早于今天且页面未标注废止/修改，填 有效。",
+          },
+
+          // ── 内容（核心字段）──
+          content: {
+            type: "string",
+            description:
+              "当前法条的完整正文。只包含本条内容，不要包含其他条的文本。如果有标题、标点，保留。",
+          },
+          page_content: {
+            type: "string",
+            description:
+              "检索用文本，由 law_name + article_no + content 拼接而成。格式: {law_name}\\n{article_no} {content}。",
+          },
+          category: {
+            type: "string",
+            description:
+              "法律类型：宪法、法律、行政法规、地方性法规、部门规章、司法解释、政策文件。根据页面内容或法律名称判断。",
+          },
+
+          // ── 标识（由系统组合生成，LLM 尽量填）──
+          id: {
+            type: "string",
+            description:
+              "唯一标识，格式 0::{law_name}::{article_no}，例如 0::中华人民共和国宪法修正案（2018年）::第三十二条。",
+          },
+
+          // ── 后处理字段（当前阶段填 null 或空值即可）──
+          source_path: { type: ["string", "null"], description: "后处理字段，填 null。" },
+          source_article_index: { type: ["integer", "null"], description: "后处理字段，填 null。" },
+          _embedding_dimensions: { type: ["integer", "null"], description: "后处理字段，填 null。" },
+          _embedding_model: { type: ["string", "null"], description: "后处理字段，填 null。" },
+          _embedding_text_field: { type: ["string", "null"], description: "后处理字段，填 null。" },
+          "vector-text-embedding-v4": {
+            type: "array",
+            description: "后处理字段，填 []。",
+            items: { type: "number" },
+          },
+          metadata: {
+            type: "object",
+            description: "完整元数据字典，严格按此结构填写。",
+            properties: {
+              publish_date: { type: "string", description: "发布日期，与顶层一致。" },
+              effective_date: { type: "string", description: "生效日期，与顶层一致。" },
+              type: { type: "string", description: "类型，同顶层 category。" },
+              status: { type: "string", description: "状态，同顶层 validity_status。" },
+              title: { type: "string", description: "标题，同顶层 law_name。" },
+              office: { type: "string", description: "发布机关，同顶层。" },
+              office_level: { type: "string", description: "机关层级，同顶层。" },
+              office_category: { type: "string", description: "机关类别，同顶层。" },
+              effective_period: { type: "string", description: "生效时间段，同顶层。" },
+              source_row_id: { type: "integer", description: "源行号，填 0。" },
+              article_index: { type: "integer", description: "法条序号，从 1 开始。" },
+              part_label: { type: "string", description: "编编号，从页面原文提取如 第一编。整个页面都找不到编级结构时填 ''。" },
+              part_title: { type: "string", description: "编标题，从页面原文提取如 总则。无则 ''。" },
+              part_number: { type: "string", description: "编数字编号，从 part_label 提取数字如 1。无则 ''。" },
+              subpart_label: { type: "string", description: "分编编号，从页面原文提取。无则 ''。" },
+              subpart_title: { type: "string", description: "分编标题，从页面原文提取。无则 ''。" },
+              subpart_number: { type: "string", description: "分编数字编号。无则 ''。" },
+              chapter_label: { type: "string", description: "章编号，从页面原文提取如 第一章。必须查找页面中出现的\\\"第X章\\\"标记，不要填 ''，除非确认页面完全没有章结构。" },
+              chapter_title: { type: "string", description: "章标题，从页面原文提取如 总则。必须查找页面中章标题。" },
+              chapter_number: { type: "string", description: "章数字编号，从 chapter_label 提取数字如 1。" },
+              section_label: { type: "string", description: "节编号，从页面原文提取如 第一节。有则填，无则 ''。" },
+              section_title: { type: "string", description: "节标题，从页面原文提取。有则填，无则 ''。" },
+              section_number: { type: "string", description: "节数字编号。有则填，无则 ''。" },
+              article_label: { type: "string", description: "法条编号，同顶层 article_no。" },
+              article_number: { type: "integer", description: "法条数字编号，同顶层。" },
+              source_path: { type: "string", description: "源路径，填当前页面 URL。" },
+              source_title: { type: "string", description: "源标题，同顶层 law_name。" },
+              source_type: { type: "string", description: "源类型，同顶层 category。" },
+              source_status: { type: "string", description: "源状态，同顶层 validity_status。" },
+              source_office: { type: "string", description: "源发布机关，同顶层 office。" },
+              source_office_level: { type: "string", description: "源机关层级，同顶层。" },
+              source_office_category: { type: "string", description: "源机关类别，同顶层。" },
+              source_publish_date: { type: "string", description: "源发布日期，同顶层。" },
+              source_effective_date: { type: "string", description: "源生效日期，同顶层。" },
+              source_effective_period: { type: "string", description: "源生效时间段，同顶层。" },
+              source_article_index: { type: "integer", description: "源法条序号，同 article_index。" },
+            },
+          },
+          source_url: {
+            type: ["string", "null"],
+            description: "当前法规来源网页 URL，填用户输入的 portal_url。",
+          },
+        },
+      },
+    },
+  },
+};
+
+const CODE_SNIPPET_SCHEMA = {
+  type: "object",
+  required: ["name", "version", "items"],
+  properties: {
+    name: {
+      type: "string",
+      description: "固定填 \\\"code_snippet\\\"。",
+    },
+    version: {
+      type: "string",
+      description: "固定填 \\\"1.0\\\"。",
+    },
+    items: {
+      type: "array",
+      description:
+        "从网页中抽取的代码片段列表。每一条对应一个独立的函数、方法、类定义或可包装为函数的语句块。不要抽取 YAML/JSON/TOML 配置文件、HTML 模板或纯文本。",
+      items: {
+        type: "object",
+        required: ["raw_snippet", "normalized_snippet", "semantic_annotation"],
+        properties: {
+          // ── 原始代码 ──
+          raw_snippet: {
+            type: "object",
+            required: ["language", "raw_code"],
+            properties: {
+              language: {
+                type: "string",
+                description:
+                  "代码语言，当前仅抽取 Python 代码。看到非 Python 代码（JS/Java/C++/SQL 等）不要纳入 items。",
+              },
+              raw_code: {
+                type: "string",
+                description:
+                  "网页中的原始代码文本，必须是非空字符串。保留原始缩进和变量名。注意排除页面导航、注释模板和Shell命令。",
+              },
+            },
+          },
+
+          // ── 标准化代码 ──
+          normalized_snippet: {
+            type: "object",
+            required: ["language", "normalized_code"],
+            properties: {
+              language: {
+                type: "string",
+                description: "填 \\\"python\\\"。",
+              },
+              normalized_code: {
+                type: "string",
+                description:
+                  "标准化后的代码。如果 raw_code 是完整函数或类定义，原样复制；如果 raw_code 是零散语句，包装为 def generated_function(...): 并补上参数和 return 语句。不要返回 null。",
+              },
+            },
+          },
+
+          // ── 语义标注 ──
+          semantic_annotation: {
+            type: "object",
+            required: ["intent", "input_variables", "output_variables", "reusable_interface"],
+            properties: {
+              intent: {
+                type: "string",
+                description:
+                  "代码意图，用简短中文短语概括，例如 计算总价、读取文件、调用API、解析JSON。",
+              },
+              input_variables: {
+                type: "array",
+                description: "输入变量列表。无法识别时返回空数组 []。",
+                items: {
+                  type: "object",
+                  required: ["name", "type", "description"],
+                  properties: {
+                    name: { type: "string", description: "变量名。" },
+                    type: { type: ["string", "null"], description: "变量类型，如 int, str, list。无法判断填 null。" },
+                    description: { type: ["string", "null"], description: "变量含义，无法判断填 null。" },
+                  },
+                },
+              },
+              output_variables: {
+                type: "array",
+                description: "输出变量或返回值列表。无法识别时返回空数组 []。",
+                items: {
+                  type: "object",
+                  required: ["name", "type", "description"],
+                  properties: {
+                    name: { type: "string", description: "变量名或 return。" },
+                    type: { type: ["string", "null"], description: "返回类型，无法判断填 null。" },
+                    description: { type: ["string", "null"], description: "返回值含义，无法判断填 null。" },
+                  },
+                },
+              },
+              reusable_interface: {
+                type: "string",
+                description:
+                  "可复用的函数签名建议，例如 generated_function(price, quantity)。无法确定填 normalized_code 中的函数签名。",
+              },
+            },
+          },
+
+          // ── 元信息 ──
+          source_url: {
+            type: "string",
+            description: "代码来源页面 URL，填用户输入的 portal_url。不要填 null。",
+          },
+        },
+      },
+    },
+  },
+};
+
 
 function formatDateTime(value?: string | null) {
   if (!value) return "-";
@@ -445,16 +717,19 @@ export function CrawlerWorkbench({
 }: CrawlerWorkbenchProps) {
   const createTask = useCreateCrawlTask();
 
-  const [mode, setMode] = useState<CrawlMode>("manual");
+  const [mode, setMode] = useState<WorkMode>("manual");
+  const [crawlMode, setCrawlMode] = useState<CrawlMode>("general");
   const [name, setName] = useState("");
   const [portalUrl, setPortalUrl] = useState("");
   const [query, setQuery] = useState("");
   const [outputMode, setOutputMode] = useState<OutputMode>("html");
   const [jsonSchemaText, setJsonSchemaText] = useState("");
+  const [showJsonSchemaEditor, setShowJsonSchemaEditor] = useState(false);
 
   const [scheduleHours, setScheduleHours] = useState(0);
   const [scheduleMinutes, setScheduleMinutes] = useState(60);
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
+  const [maxIterations, setMaxIterations] = useState(10);
 
   const [modelConfigs, setModelConfigs] = useState<ModelConfigItem[]>([]);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -479,12 +754,52 @@ export function CrawlerWorkbench({
     try { await deleteSchedule(id); toast.success("已删除"); setSchedules((s) => s.filter((x) => x.id !== id)); onRefresh(); } catch { toast.error("删除失败"); }
   };
 
+  const handleCrawlModeChange = (value: CrawlMode) => {
+    setCrawlMode(value);
+    setShowJsonSchemaEditor(false);
+
+    if (value === "general") {
+      return;
+    }
+
+    setOutputMode("json");
+
+    if (value === "policy_regulation") {
+      setJsonSchemaText(JSON.stringify(POLICY_REGULATION_SCHEMA, null, 2));
+      return;
+    }
+
+    if (value === "code_snippet") {
+      setJsonSchemaText(JSON.stringify(CODE_SNIPPET_SCHEMA, null, 2));
+      return;
+    }
+
+    // 视频监控类：download 模式，Agent 只导航+下载，不提取页面内容
+    if (value === "video_surveillance") {
+      setOutputMode("download" as OutputMode);
+      setQuery("使用 download_file 工具");
+    }
+  };
+
   const canSubmit = useMemo(() => {
     return Boolean(name.trim() && portalUrl.trim() && query.trim());
   }, [name, portalUrl, query]);
 
   const handleCreateTask = async () => {
     if (!canSubmit) return;
+
+    let parsedJsonSchema: Record<string, unknown> | unknown[] | null = null;
+
+    if (outputMode === "json" && jsonSchemaText.trim()) {
+      try {
+        parsedJsonSchema = JSON.parse(jsonSchemaText) as
+          | Record<string, unknown>
+          | unknown[];
+      } catch {
+        toast.error("JSON 结构定义格式不正确，请检查是否为合法 JSON");
+        return;
+      }
+    }
 
     if (mode === "schedule") {
       try {
@@ -501,6 +816,8 @@ export function CrawlerWorkbench({
             query: query.trim(),
             output_mode: outputMode,
             storage_db_type: null,
+            json_schema: parsedJsonSchema,
+            max_iterations: maxIterations,
           },
         });
 
@@ -510,25 +827,14 @@ export function CrawlerWorkbench({
         setQuery("");
         setOutputMode("html");
         setJsonSchemaText("");
+        setCrawlMode("general");
+        setShowJsonSchemaEditor(false);
         void loadSchedules();
         onRefresh();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "创建定时任务失败");
       }
       return;
-    }
-
-    let parsedJsonSchema: Record<string, unknown> | unknown[] | null = null;
-
-    if (outputMode === "json" && jsonSchemaText.trim()) {
-      try {
-        parsedJsonSchema = JSON.parse(jsonSchemaText) as
-          | Record<string, unknown>
-          | unknown[];
-      } catch {
-        toast.error("JSON 结构定义格式不正确，请检查是否为合法 JSON");
-        return;
-      }
     }
 
     try {
@@ -539,6 +845,7 @@ export function CrawlerWorkbench({
         output_mode: outputMode,
         storage_db_type: null,
         json_schema: parsedJsonSchema,
+        max_iterations: maxIterations,
       });
 
       toast.success("爬取任务已创建");
@@ -547,6 +854,8 @@ export function CrawlerWorkbench({
       setQuery("");
       setOutputMode("html");
       setJsonSchemaText("");
+      setCrawlMode("general");
+      setShowJsonSchemaEditor(false);
 
       onSelectTask(task);
       onRefresh();
@@ -624,9 +933,25 @@ export function CrawlerWorkbench({
 
           <div className="rounded-2xl border bg-background p-5 shadow-sm">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="text-lg font-semibold">网页智能化爬取</div>
-                <div className="mt-1 text-sm text-muted-foreground">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-lg font-semibold">网页智能化爬取</div>
+                  <Select
+                    value={crawlMode}
+                    onValueChange={(value) => handleCrawlModeChange(value as CrawlMode)}
+                  >
+                    <SelectTrigger className="h-8 w-[190px] rounded-full text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">通用网页爬取</SelectItem>
+                      <SelectItem value="policy_regulation">政策法规类数据爬取</SelectItem>
+                      <SelectItem value="code_snippet">代码片段类数据爬取</SelectItem>
+                      <SelectItem value="video_surveillance">数据集下载</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
                   输入目标 URL 和自然语言需求，由 Crawler Agent 自动完成网页探索、内容提取和结果保存。
                 </div>
               </div>
@@ -687,16 +1012,49 @@ export function CrawlerWorkbench({
                 <Textarea
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="例如：提取页面中的政策标题、发布时间和正文"
+                  placeholder={
+                    crawlMode === "policy_regulation"
+                      ? "例如：提取页面中的政策标题、发布时间和正文"
+                      : crawlMode === "code_snippet"
+                        ? "例如：提取页面中的代码块、编程语言和注释"
+                        : crawlMode === "video_surveillance"
+                              ? "例如：提取页面中所有监控视频，使用 download_file 下载视频文件到本地"
+                              : "例如：提取页面的主要内容"
+                  }
                   rows={4}
                 />
+              </div>
+
+              <div className="space-y-2.5">
+                <label className="text-sm font-medium">
+                  最大探索步数: {maxIterations}
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={50}
+                  value={maxIterations}
+                  onChange={(e) => setMaxIterations(parseInt(e.target.value, 10))}
+                  className="w-full h-1.5 appearance-none rounded-full bg-muted accent-primary cursor-pointer"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>1 (快)</span>
+                  <span>50 (深)</span>
+                </div>
               </div>
 
               <div className="space-y-2.5">
                 <label className="text-sm font-medium">输出模式</label>
                 <Select
                   value={outputMode}
-                  onValueChange={(value) => setOutputMode(value as OutputMode)}
+                  onValueChange={(value) => {
+                    const nextOutputMode = value as OutputMode;
+                    setOutputMode(nextOutputMode);
+                    if (nextOutputMode !== "json") {
+                      setShowJsonSchemaEditor(false);
+                    }
+                  }}
+                  disabled={crawlMode !== "general"}
                 >
                   <SelectTrigger className="w-[150px]">
                     <SelectValue />
@@ -705,6 +1063,7 @@ export function CrawlerWorkbench({
                     <SelectItem value="html">HTML</SelectItem>
                     <SelectItem value="markdown">Markdown</SelectItem>
                     <SelectItem value="json">JSON</SelectItem>
+                    <SelectItem value="download">数据集下载</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -713,19 +1072,53 @@ export function CrawlerWorkbench({
               {outputMode === "json" && (
                 <div className="space-y-2.5 lg:col-span-2">
                   <div className="flex items-center justify-between gap-3">
-                    <label className="text-sm font-medium">JSON 结构定义</label>
-                    <span className="text-xs text-muted-foreground">可选</span>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">JSON 结构定义</label>
+                      <div className="text-xs leading-5 text-muted-foreground">
+                        {crawlMode === "policy_regulation"
+                          ? "当前已使用政策法规类数据模板，可展开查看或微调字段。"
+                          : crawlMode === "code_snippet"
+                            ? "当前已使用代码片段类数据模板，可展开查看或微调字段。"
+                            : "如果希望固定 JSON 输出结构，可展开填写 JSON Schema；留空则由系统自动生成结构。"}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowJsonSchemaEditor((value) => !value)}
+                      className="h-8 whitespace-nowrap"
+                    >
+                      {showJsonSchemaEditor ? "收起模板" : "展开查看/编辑"}
+                    </Button>
                   </div>
-                  <Textarea
-                    value={jsonSchemaText}
-                    onChange={(event) => setJsonSchemaText(event.target.value)}
-                    placeholder='例如：{"type":"object","properties":{"items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"publish_time":{"type":"string"}}}}}'
-                    rows={4}
-                    className="font-mono text-xs leading-5"
-                  />
-                  <div className="rounded-xl bg-muted/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
-                    如果希望固定 JSON 输出结构，请填写 JSON Schema 或结构模板；留空则由系统自动生成结构。
-                  </div>
+
+                  {!showJsonSchemaEditor && (
+                    <div className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                      {crawlMode === "general"
+                        ? "当前未展开 JSON 结构定义。选择 JSON 输出时，可按需展开填写模板。"
+                        : "已自动填入当前爬取模式对应的内置 JSON 模板，提交任务时会随任务一起发送。"}
+                    </div>
+                  )}
+
+                  {showJsonSchemaEditor && (
+                    <>
+                      <Textarea
+                        value={jsonSchemaText}
+                        onChange={(event) => setJsonSchemaText(event.target.value)}
+                        placeholder='例如：{"type":"object","properties":{"items":{"type":"array"}}}'
+                        rows={10}
+                        className="max-h-[360px] min-h-[220px] font-mono text-xs leading-5"
+                      />
+                      <div className="rounded-xl bg-muted/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                        {crawlMode === "policy_regulation"
+                          ? "当前已使用政策法规类数据模板，可根据需要微调字段。"
+                          : crawlMode === "code_snippet"
+                            ? "当前已使用代码片段类数据模板，可根据需要微调字段。"
+                            : "如果希望固定 JSON 输出结构，请填写 JSON Schema 或结构模板；留空则由系统自动生成结构。"}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

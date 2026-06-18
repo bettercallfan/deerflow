@@ -41,7 +41,7 @@ def _build_browser_model_config(model_config: Optional[Dict[str, str]] = None) -
     }
 
 
-async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str]] = None, max_iters: int = 10) -> List[Dict[str, Any]]:
     """
     用户提供初始URL和想要获取的信息，BrowserAgent导航到目标页面并返回URL
 
@@ -157,7 +157,7 @@ async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str
             memory=InMemoryMemory(),
             toolkit=toolkit,
             sys_prompt=custom_sys_prompt,
-            max_iters=50,
+            max_iters=max_iters,
             start_url=url,
             enable_screenshots=os.environ.get("ENABLE_SCREENSHOTS", "").lower() in ("1", "true", "yes"),
         )

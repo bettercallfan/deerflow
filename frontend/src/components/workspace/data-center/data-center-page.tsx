@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CirclePlusIcon,
   DatabaseIcon,
   FolderArchiveIcon,
   HardDriveDownloadIcon,
@@ -31,11 +30,9 @@ import { useCrawlTasks } from "@/core/crawler";
 import { CrawlerWorkbench } from "./crawler-workbench";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
-
+import { DocumentParserPanel } from "./document-parser-panel";
 
 import { CrawlerTaskCardList } from "./crawler-task-list";
-import { CrawlerTaskDetail } from "./crawler-task-detail";
-
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -192,7 +189,7 @@ export function DataCenterPage() {
   } = useCrawlTasks();
 
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"sources" | "uploads" | "crawler">("sources");
+  const [activeTab, setActiveTab] = useState<"sources" | "uploads" | "crawler" | "document-parser">("sources");
   const [selectedId, setSelectedId] = useState<string>("");
   const [chatSelection, setChatSelection] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -352,6 +349,22 @@ export function DataCenterPage() {
     }
   };
 
+  const renderTabButton = (
+    tab: "sources" | "uploads" | "crawler" | "document-parser",
+    label: string,
+  ) => (
+    <button
+      type="button"
+      onClick={() => setActiveTab(tab)}
+      className={cn(
+        "rounded-lg px-4 py-2 text-sm transition",
+        activeTab === tab ? "bg-background shadow-sm" : "text-muted-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <WorkspaceContainer>
       <WorkspaceHeader />
@@ -365,6 +378,31 @@ export function DataCenterPage() {
         />
         <div className="flex size-full gap-0 overflow-hidden rounded-none xl:p-4">
           <section className="bg-background flex h-full w-full min-w-0 flex-col overflow-hidden border xl:rounded-3xl">
+            {activeTab === "document-parser" ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex h-20 shrink-0 items-center justify-between border-b px-6">
+                  <div>
+                    <h1 className="text-lg font-semibold">{t.dataCenter.title}</h1>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      {t.dataCenter.subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 border-b p-6">
+                  <div className="bg-muted inline-flex flex-wrap rounded-xl p-1">
+                    {renderTabButton("sources", t.dataCenter.allSources)}
+                    {renderTabButton("uploads", t.dataCenter.uploadedData)}
+                    {renderTabButton("crawler", t.dataCenter.webScraping)}
+                    {renderTabButton("document-parser", "文档解析")}
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-hidden p-6">
+                  <DocumentParserPanel />
+                </div>
+              </div>
+            ) : (
             <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[430px_minmax(0,1fr)]">
               <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r">
                 <div className="flex h-20 shrink-0 items-center justify-between border-b px-6">
@@ -406,42 +444,10 @@ export function DataCenterPage() {
                   </div>
                   )}
                   <div className="bg-muted inline-flex rounded-xl p-1">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("sources")}
-                      className={cn(
-                        "rounded-lg px-4 py-2 text-sm transition",
-                        activeTab === "sources"
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {t.dataCenter.allSources}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("uploads")}
-                      className={cn(
-                        "rounded-lg px-4 py-2 text-sm transition",
-                        activeTab === "uploads"
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {t.dataCenter.uploadedData}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("crawler")}
-                      className={cn(
-                        "rounded-lg px-4 py-2 text-sm transition",
-                        activeTab === "crawler"
-                          ? "bg-background shadow-sm"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {t.dataCenter.webScraping}
-                    </button>
+                    {renderTabButton("sources", t.dataCenter.allSources)}
+                    {renderTabButton("uploads", t.dataCenter.uploadedData)}
+                    {renderTabButton("crawler", t.dataCenter.webScraping)}
+                    {renderTabButton("document-parser", "文档解析")}
                   </div>
                 </div>
 
@@ -782,6 +788,7 @@ export function DataCenterPage() {
               </div>
               )}
             </div>
+            )}
           </section>
         </div>
         <Dialog open={databaseDialogOpen} onOpenChange={setDatabaseDialogOpen}>

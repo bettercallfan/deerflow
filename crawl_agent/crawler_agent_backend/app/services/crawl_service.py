@@ -74,6 +74,62 @@ class CrawlService:
         return paths
 
     @staticmethod
+    def _download_images(task_id: str, page_id: str, idx: int, markdown_text: str, page_url: str, html_text: str = "") -> list[dict]:
+        """从 Markdown ![]() 和 HTML <img> 标签中提取图片 URL 并下载，返回图片清单。"""
+        import re
+        from urllib.parse import urljoin
+
+        images_dir = Path("outputs") / task_id / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        seen: set[str] = set()
+        candidates: list[tuple[str, str]] = []  # (alt, url)
+
+        # ── 方式1: Markdown ![](url) ──
+        for m in re.finditer(r"!\[([^\]]*)\]\(([^)]+)\)", markdown_text or ""):
+            alt, u = m.group(1), m.group(2).strip().split(" ")[0]
+            if u not in seen:
+                seen.add(u); candidates.append((alt, u))
+
+        # ── 方式2: HTML <img src="..."> ──
+        for m in re.finditer(r'<img[^>]+src\s*=\s*["\']([^"\']+)["\']', html_text or "", re.IGNORECASE):
+            u = m.group(1).strip()
+            if u and u not in seen:
+                seen.add(u); candidates.append(("", u))
+
+        if not candidates:
+            return []
+
+        records: list[dict] = []
+        for i, (alt, img_url) in enumerate(candidates):
+            absolute_url = urljoin(page_url, img_url)
+            ext = ".jpg"
+            url_lower = img_url.lower().split("?")[0]
+            for s in [".png", ".gif", ".webp", ".svg", ".jpeg", ".bmp"]:
+                if url_lower.endswith(s): ext = s; break
+
+            local_path = images_dir / f"img_{idx + 1}_{i + 1:03d}{ext}"
+            downloaded, error = False, None
+            try:
+                resp = requests.get(absolute_url, timeout=30, stream=True)
+                resp.raise_for_status()
+                local_path.write_bytes(resp.content)
+                downloaded = True
+            except Exception as e:
+                error = str(e)
+
+            records.append({
+                "index": i + 1, "alt": alt,
+                "original_url": img_url, "absolute_url": absolute_url,
+                "local_path": str(local_path.relative_to(Path("outputs") / task_id)),
+                "downloaded": downloaded, "error": error,
+            })
+
+        manifest = {"task_id": task_id, "images": records}
+        (images_dir / "images.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        return records
+
+    @staticmethod
     def _update_manifest(task_id: str, page_id: str, idx: int, url: str, title: str, extracted: dict, paths: dict) -> None:
         """更新 outputs/{task_id}/manifest.json，追加当前页面信息。"""
         import json as _json
@@ -229,6 +285,7 @@ class CrawlService:
             query=payload["query"],
             output_mode=payload.get("output_mode", OutputMode.JSON),
             json_schema=payload.get("json_schema"),
+            max_iterations=int(payload.get("max_iterations", 10)),
             dedup_enabled=dedup_enabled,
             dedup_scope=payload.get("dedup_scope", "global"),
             hash_mode=payload.get("hash_mode", "raw+normalized"),
@@ -368,6 +425,7 @@ class CrawlService:
                 query=task.query,
                 portal_url=task.portal_url,
                 model_config=crawler_agent_config,
+                max_iters=task.max_iterations,
             )
             if not pages:
                 raise ValueError("未收集到任何候选页面，请检查站点可达性、查询条件或模型配置是否可用")
@@ -413,7 +471,11 @@ class CrawlService:
                         unchanged_count += 1
                     self.log_event(task.id, "DEDUP", f"skip duplicate page: {url} ({duplicate_reason.value})")
                 else:
-                    if task.output_mode == OutputMode.HTML:
+                    if task.output_mode == OutputMode.DOWNLOAD:
+                        # download 模式：Agent 已在导航阶段下载文件，跳过页面提取
+                        new_count += 1
+                        continue
+                    elif task.output_mode == OutputMode.HTML:
                         extracted = extract_html(url=url, html=html)
                     elif task.output_mode == OutputMode.MARKDOWN:
                         extracted = extract_markdown(url=url, html=html)
@@ -459,6 +521,10 @@ class CrawlService:
                     if use_file_output:
                         # 本地文件保存 + manifest
                         paths = self._save_result_to_file(task.id, page_row.id, idx, extracted)
+                        # 同时从 Markdown 和原始 HTML 提取图片并下载
+                        md_text = extracted.get("result_markdown") or ""
+                        if html or md_text:
+                            self._download_images(task.id, page_row.id, idx, md_text, url, html)
                         self._update_manifest(task.id, page_row.id, idx, url, title or "", extracted, paths)
                     else:
                         storage_service.write_to_external_storage(
@@ -491,6 +557,18 @@ class CrawlService:
             task.finished_at = datetime.utcnow()
 
             self.log_event(task.id, "DONE", task.result_summary)
+
+            # download 模式：把全局 downloads/ 中本次下载的文件移到任务专属目录
+            if task.output_mode == OutputMode.DOWNLOAD:
+                import shutil
+                dl_src = Path("downloads")
+                dl_dst = Path("outputs") / task.id / "downloads"
+                if dl_src.exists():
+                    dl_dst.mkdir(parents=True, exist_ok=True)
+                    record_time = (task.started_at or task.created_at).timestamp()
+                    for f in dl_src.rglob("*"):
+                        if f.is_file() and f.stat().st_mtime >= record_time:
+                            shutil.move(str(f), str(dl_dst / f.name))
             self.db.commit()
             self.db.refresh(task)
             return task

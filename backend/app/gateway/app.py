@@ -10,6 +10,7 @@ from app.gateway.routers import (
     artifacts,
     channels,
     crawler,
+    document_parser,
     data_center,
     mcp,
     memory,
@@ -195,6 +196,8 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Crawler proxy API is mounted at /api/data-center/crawler
     app.include_router(crawler.router)
+
+    app.include_router(document_parser.router)
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict:
