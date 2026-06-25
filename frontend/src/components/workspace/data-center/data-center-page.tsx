@@ -403,8 +403,8 @@ export function DataCenterPage() {
                 </div>
               </div>
             ) : (
-            <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[430px_minmax(0,1fr)]">
-              <aside className="flex h-full min-h-0 flex-col overflow-hidden border-r">
+            <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+              <aside className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r xl:w-[clamp(400px,28vw,460px)] xl:min-w-[400px] xl:max-w-[460px]">
                 <div className="flex h-20 shrink-0 items-center justify-between border-b px-6">
                   <div>
                     <h1 className="text-lg font-semibold">{t.dataCenter.title}</h1>
@@ -452,14 +452,25 @@ export function DataCenterPage() {
                 </div>
 
                 {activeTab === "crawler" ? (
-                <CrawlerTaskCardList
-                  tasks={crawlerData?.items ?? []}
-                  isLoading={isCrawlerLoading}
-                  error={crawlerError}
-                  selectedTaskId={selectedCrawlerTask?.id ?? null}
-                  onSelectTask={setSelectedCrawlerTask}
-                  t={t}
-                />
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <div className="shrink-0 border-b p-4">
+                    <Button
+                      type="button"
+                      className="h-11 w-full rounded-xl bg-foreground text-sm font-medium text-background hover:bg-foreground/90"
+                      onClick={() => setSelectedCrawlerTask(null)}
+                    >
+                      + 新建爬取
+                    </Button>
+                  </div>
+                  <CrawlerTaskCardList
+                    tasks={crawlerData?.items ?? []}
+                    isLoading={isCrawlerLoading}
+                    error={crawlerError}
+                    selectedTaskId={selectedCrawlerTask?.id ?? null}
+                    onSelectTask={setSelectedCrawlerTask}
+                    t={t}
+                  />
+                </div>
                 ) : (
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <div className="space-y-2 p-4 pb-20">
@@ -555,13 +566,15 @@ export function DataCenterPage() {
               </aside>
 
               {activeTab === "crawler" ? (
-                <CrawlerWorkbench
-                  selectedTask={selectedCrawlerTask}
-                  onSelectTask={setSelectedCrawlerTask}
-                  onRefresh={() => void refetchCrawler()}
-                />
+                <div className="min-w-0 flex-1">
+                  <CrawlerWorkbench
+                    selectedTask={selectedCrawlerTask}
+                    onSelectTask={setSelectedCrawlerTask}
+                    onRefresh={() => void refetchCrawler()}
+                  />
+                </div>
               ) : (
-              <div className="grid h-full min-h-0 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid h-full min-h-0 min-w-0 flex-1 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="relative flex min-h-[32rem] flex-col items-center justify-center border-r px-8 py-10">
                   {selectedSource ? (
                     isEsSource(selectedSource) ? (

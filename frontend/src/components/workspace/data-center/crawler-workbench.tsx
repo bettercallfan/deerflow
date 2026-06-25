@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BotIcon,
   ClockIcon,
@@ -47,6 +47,7 @@ interface CrawlerWorkbenchProps {
 }
 
 type WorkMode = "manual" | "schedule";
+type CrawlerViewMode = "create" | "detail";
 type CrawlMode = "general" | "policy_regulation" | "code_snippet" | "video_surveillance";
 
 const POLICY_REGULATION_SCHEMA = {
@@ -199,125 +200,12 @@ const POLICY_REGULATION_SCHEMA = {
               source_article_index: { type: "integer", description: "源法条序号，同 article_index。" },
             },
           },
-          source_url: {
-            type: ["string", "null"],
-            description: "当前法规来源网页 URL，填用户输入的 portal_url。",
-          },
         },
       },
     },
   },
 };
 
-const CODE_SNIPPET_SCHEMA = {
-  type: "object",
-  required: ["name", "version", "items"],
-  properties: {
-    name: {
-      type: "string",
-      description: "固定填 \\\"code_snippet\\\"。",
-    },
-    version: {
-      type: "string",
-      description: "固定填 \\\"1.0\\\"。",
-    },
-    items: {
-      type: "array",
-      description:
-        "从网页中抽取的代码片段列表。每一条对应一个独立的函数、方法、类定义或可包装为函数的语句块。不要抽取 YAML/JSON/TOML 配置文件、HTML 模板或纯文本。",
-      items: {
-        type: "object",
-        required: ["raw_snippet", "normalized_snippet", "semantic_annotation"],
-        properties: {
-          // ── 原始代码 ──
-          raw_snippet: {
-            type: "object",
-            required: ["language", "raw_code"],
-            properties: {
-              language: {
-                type: "string",
-                description:
-                  "代码语言，当前仅抽取 Python 代码。看到非 Python 代码（JS/Java/C++/SQL 等）不要纳入 items。",
-              },
-              raw_code: {
-                type: "string",
-                description:
-                  "网页中的原始代码文本，必须是非空字符串。保留原始缩进和变量名。注意排除页面导航、注释模板和Shell命令。",
-              },
-            },
-          },
-
-          // ── 标准化代码 ──
-          normalized_snippet: {
-            type: "object",
-            required: ["language", "normalized_code"],
-            properties: {
-              language: {
-                type: "string",
-                description: "填 \\\"python\\\"。",
-              },
-              normalized_code: {
-                type: "string",
-                description:
-                  "标准化后的代码。如果 raw_code 是完整函数或类定义，原样复制；如果 raw_code 是零散语句，包装为 def generated_function(...): 并补上参数和 return 语句。不要返回 null。",
-              },
-            },
-          },
-
-          // ── 语义标注 ──
-          semantic_annotation: {
-            type: "object",
-            required: ["intent", "input_variables", "output_variables", "reusable_interface"],
-            properties: {
-              intent: {
-                type: "string",
-                description:
-                  "代码意图，用简短中文短语概括，例如 计算总价、读取文件、调用API、解析JSON。",
-              },
-              input_variables: {
-                type: "array",
-                description: "输入变量列表。无法识别时返回空数组 []。",
-                items: {
-                  type: "object",
-                  required: ["name", "type", "description"],
-                  properties: {
-                    name: { type: "string", description: "变量名。" },
-                    type: { type: ["string", "null"], description: "变量类型，如 int, str, list。无法判断填 null。" },
-                    description: { type: ["string", "null"], description: "变量含义，无法判断填 null。" },
-                  },
-                },
-              },
-              output_variables: {
-                type: "array",
-                description: "输出变量或返回值列表。无法识别时返回空数组 []。",
-                items: {
-                  type: "object",
-                  required: ["name", "type", "description"],
-                  properties: {
-                    name: { type: "string", description: "变量名或 return。" },
-                    type: { type: ["string", "null"], description: "返回类型，无法判断填 null。" },
-                    description: { type: ["string", "null"], description: "返回值含义，无法判断填 null。" },
-                  },
-                },
-              },
-              reusable_interface: {
-                type: "string",
-                description:
-                  "可复用的函数签名建议，例如 generated_function(price, quantity)。无法确定填 normalized_code 中的函数签名。",
-              },
-            },
-          },
-
-          // ── 元信息 ──
-          source_url: {
-            type: "string",
-            description: "代码来源页面 URL，填用户输入的 portal_url。不要填 null。",
-          },
-        },
-      },
-    },
-  },
-};
 
 
 function formatDateTime(value?: string | null) {
@@ -569,12 +457,14 @@ function ResultPreview({ selectedTask }: { selectedTask: CrawlTaskItem | null })
   );
 }
 
-function CurrentTaskSidePanel({
+function CrawlerTaskDetailPanel({
   selectedTask,
   onRefresh,
+  modelConfigs,
 }: {
   selectedTask: CrawlTaskItem | null;
   onRefresh: () => void;
+  modelConfigs: ModelConfigItem[];
 }) {
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -592,121 +482,157 @@ function CurrentTaskSidePanel({
     }
   };
 
-  const canCancel = selectedTask && (selectedTask.status === "PENDING" || selectedTask.status === "RUNNING");
-  return (
-    <aside className="flex h-full min-h-0 w-[320px] shrink-0 flex-col overflow-hidden border-l bg-background/60">
-      <div className="shrink-0 border-b px-5 py-5">
-        <div className="font-medium">当前任务详情</div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          查看选中任务的运行状态、参数和快捷操作。
+  if (!selectedTask) {
+    return (
+      <div className="rounded-2xl border border-dashed bg-background p-10 text-center shadow-sm">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+          <FileTextIcon className="size-5 text-muted-foreground" />
+        </div>
+        <div className="mt-4 text-base font-medium">请选择一个爬取任务</div>
+        <div className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+          左侧选择历史任务后，这里会展示任务详情、任务参数、结果预览和执行信息。
         </div>
       </div>
+    );
+  }
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {!selectedTask ? (
-          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            左侧选择任务后，这里会展示任务详情。
-          </div>
-        ) : (
-          <div className="space-y-5">
-            <div>
-              <div className="break-all text-base font-semibold">
+  const canCancel =
+    selectedTask.status === "PENDING" || selectedTask.status === "RUNNING";
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-2xl border bg-background p-5 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="break-all text-xl font-semibold">
                 {selectedTask.name}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-xs",
-                    getStatusClassName(selectedTask.status),
-                  )}
-                >
-                  {getStatusText(selectedTask.status)}
-                </span>
-                <span className="rounded-full border bg-muted px-2 py-0.5 text-xs">
-                  {selectedTask.output_mode.toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-sm">
-              <div>
-                <div className="text-xs text-muted-foreground">目标 URL</div>
-                <div className="mt-1 break-all">{selectedTask.portal_url}</div>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground">自然语言需求</div>
-                <div className="mt-1 rounded-xl bg-muted p-3 text-xs leading-5">
-                  {selectedTask.query}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border p-3">
-                  <div className="text-xs text-muted-foreground">进度</div>
-                  <div className="mt-1 font-medium">{selectedTask.progress ?? 0}%</div>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <div className="text-xs text-muted-foreground">来源</div>
-                  <div className="mt-1 truncate font-medium">
-                    {selectedTask.source || "手动"}
-                  </div>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <div className="text-xs text-muted-foreground">输出格式</div>
-                  <div className="mt-1 truncate font-medium">
-                    {selectedTask.output_mode.toUpperCase()}
-                  </div>
-                </div>
-                <div className="rounded-xl border p-3">
-                  <div className="text-xs text-muted-foreground">保存位置</div>
-                  <div className="mt-1 truncate font-medium">
-                    {getStorageText(selectedTask.storage_db_type)}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground">创建时间</div>
-                <div className="mt-1">{formatDateTime(selectedTask.created_at)}</div>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground">完成时间</div>
-                <div className="mt-1">{formatDateTime(selectedTask.finished_at)}</div>
-              </div>
-            </div>
-
-            {selectedTask.error_message && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <div className="font-medium">错误信息</div>
-                <div className="mt-2 text-xs leading-5">
-                  {selectedTask.error_message}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2.5">
-              <Button className="w-full" variant="outline" onClick={onRefresh}>
-                <RefreshCwIcon className="mr-2 size-4" />
-                刷新任务
-              </Button>
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => void handleCancel()}
-                disabled={!canCancel || isCancelling}
+              </h2>
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-xs",
+                  getStatusClassName(selectedTask.status),
+                )}
               >
-                {isCancelling ? "取消中..." : "取消任务"}
-              </Button>
-              <Button className="w-full" variant="outline" disabled>
-                重新运行
-              </Button>
+                {getStatusText(selectedTask.status)}
+              </span>
+              <span className="rounded-full border bg-muted px-2.5 py-0.5 text-xs">
+                {selectedTask.output_mode.toUpperCase()}
+              </span>
+            </div>
+            <div className="mt-2 break-all text-sm text-muted-foreground">
+              {selectedTask.portal_url}
             </div>
           </div>
-        )}
-      </div>
-    </aside>
+
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onRefresh}>
+              <RefreshCwIcon className="mr-1.5 size-3.5" />
+              刷新任务
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCancel()}
+              disabled={!canCancel || isCancelling}
+            >
+              {isCancelling ? "取消中..." : "取消任务"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled>
+              重新运行
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">任务进度</div>
+            <div className="mt-1 text-sm font-medium">
+              {selectedTask.progress ?? 0}%
+            </div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">来源</div>
+            <div className="mt-1 truncate text-sm font-medium">
+              {selectedTask.source || "手动"}
+            </div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">保存位置</div>
+            <div className="mt-1 truncate text-sm font-medium">
+              {getStorageText(selectedTask.storage_db_type)}
+            </div>
+          </div>
+          <div className="rounded-xl border p-3">
+            <div className="text-xs text-muted-foreground">创建时间</div>
+            <div className="mt-1 text-sm font-medium">
+              {formatDateTime(selectedTask.created_at)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border bg-background p-5 shadow-sm">
+        <div className="flex items-center gap-2 font-medium">
+          <FileTextIcon className="size-4" />
+          任务参数
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <div className="text-xs text-muted-foreground">目标 URL</div>
+            <div className="mt-1 break-all text-sm">{selectedTask.portal_url}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">完成时间</div>
+            <div className="mt-1 text-sm">
+              {formatDateTime(selectedTask.finished_at)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">输出格式</div>
+            <div className="mt-1 text-sm font-medium">
+              {selectedTask.output_mode.toUpperCase()}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">使用模型</div>
+            <div className="mt-1 space-y-1 text-sm">
+              {modelConfigs.length === 0 ? (
+                <span className="text-muted-foreground">暂无模型配置</span>
+              ) : (
+                modelConfigs.map((cfg) => (
+                  <div key={cfg.target} className="truncate">
+                    <span className="text-muted-foreground">{cfg.label}：</span>
+                    <span className="font-medium">{cfg.model_name ?? "未配置"}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-xs text-muted-foreground">自然语言需求</div>
+          <div className="mt-2 rounded-xl bg-muted/60 p-4 text-sm leading-6">
+            {selectedTask.query || "-"}
+          </div>
+        </div>
+      </section>
+
+      {selectedTask.error_message && (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-700 shadow-sm">
+          <div className="font-medium">错误信息</div>
+          <div className="mt-2 whitespace-pre-wrap break-all text-sm leading-6">
+            {selectedTask.error_message}
+          </div>
+        </section>
+      )}
+
+      <ResultPreview selectedTask={selectedTask} />
+
+    </div>
   );
 }
 
@@ -717,6 +643,7 @@ export function CrawlerWorkbench({
 }: CrawlerWorkbenchProps) {
   const createTask = useCreateCrawlTask();
 
+  const [viewMode, setViewMode] = useState<CrawlerViewMode>("create");
   const [mode, setMode] = useState<WorkMode>("manual");
   const [crawlMode, setCrawlMode] = useState<CrawlMode>("general");
   const [name, setName] = useState("");
@@ -736,13 +663,18 @@ export function CrawlerWorkbench({
   const [editingConfig, setEditingConfig] = useState<ModelConfigItem | null>(null);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
 
+  useEffect(() => {
+    setViewMode(selectedTask ? "detail" : "create");
+  }, [selectedTask?.id]);
+
+
   const loadModelConfigs = async () => {
     try { const data = await listModelConfigs(); setModelConfigs(data.items); } catch { /* 静默 */ }
   };
   const loadSchedules = async () => {
     try { const data = await listSchedules(); setSchedules(data.items); } catch { /* 静默 */ }
   };
-  useState(() => { void loadModelConfigs(); void loadSchedules(); });
+  useEffect(() => { void loadModelConfigs(); void loadSchedules(); }, []);
 
   const handlePauseSchedule = async (id: string) => {
     try { await pauseSchedule(id); toast.success("已暂停"); void loadSchedules(); onRefresh(); } catch { toast.error("暂停失败"); }
@@ -770,7 +702,7 @@ export function CrawlerWorkbench({
     }
 
     if (value === "code_snippet") {
-      setJsonSchemaText(JSON.stringify(CODE_SNIPPET_SCHEMA, null, 2));
+      setOutputMode("markdown");
       return;
     }
 
@@ -858,16 +790,15 @@ export function CrawlerWorkbench({
       setShowJsonSchemaEditor(false);
 
       onSelectTask(task);
+      setViewMode("detail");
       onRefresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "创建爬取任务失败");
     }
   };
 
-  return (
-    <div className="flex h-full min-h-0">
-      <div className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-6">
-        <div className="mx-auto max-w-5xl space-y-5">
+  const renderCreatePanel = () => (
+    <>
           {schedules.length > 0 && (
             <div className="rounded-2xl border bg-background p-5 shadow-sm">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -911,7 +842,7 @@ export function CrawlerWorkbench({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {modelConfigs.map((cfg) => (
               <ModelCard
                 key={cfg.target}
@@ -1045,6 +976,11 @@ export function CrawlerWorkbench({
 
               <div className="space-y-2.5">
                 <label className="text-sm font-medium">输出模式</label>
+                {crawlMode === "code_snippet" ? (
+                  <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
+                    Markdown → .py 代码文件
+                  </div>
+                ) : (
                 <Select
                   value={outputMode}
                   onValueChange={(value) => {
@@ -1066,10 +1002,11 @@ export function CrawlerWorkbench({
                     <SelectItem value="download">数据集下载</SelectItem>
                   </SelectContent>
                 </Select>
+                )}
               </div>
 
 
-              {outputMode === "json" && (
+              {outputMode === "json" && crawlMode !== "code_snippet" && (
                 <div className="space-y-2.5 lg:col-span-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -1077,9 +1014,7 @@ export function CrawlerWorkbench({
                       <div className="text-xs leading-5 text-muted-foreground">
                         {crawlMode === "policy_regulation"
                           ? "当前已使用政策法规类数据模板，可展开查看或微调字段。"
-                          : crawlMode === "code_snippet"
-                            ? "当前已使用代码片段类数据模板，可展开查看或微调字段。"
-                            : "如果希望固定 JSON 输出结构，可展开填写 JSON Schema；留空则由系统自动生成结构。"}
+                          : "如果希望固定 JSON 输出结构，可展开填写 JSON Schema；留空则由系统自动生成结构。"}
                       </div>
                     </div>
                     <Button
@@ -1113,12 +1048,16 @@ export function CrawlerWorkbench({
                       <div className="rounded-xl bg-muted/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
                         {crawlMode === "policy_regulation"
                           ? "当前已使用政策法规类数据模板，可根据需要微调字段。"
-                          : crawlMode === "code_snippet"
-                            ? "当前已使用代码片段类数据模板，可根据需要微调字段。"
-                            : "如果希望固定 JSON 输出结构，请填写 JSON Schema 或结构模板；留空则由系统自动生成结构。"}
+                          : "如果希望固定 JSON 输出结构，请填写 JSON Schema 或结构模板；留空则由系统自动生成结构。"}
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {crawlMode === "code_snippet" && (
+                <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  输出为独立 <code className="rounded bg-muted px-1 text-xs">.py</code> 代码文件，每个函数/类/语句块独立拆分。
                 </div>
               )}
 
@@ -1194,12 +1133,24 @@ export function CrawlerWorkbench({
               </Button>
             </div>
           </div>
+    </>
+  );
 
-          <ResultPreview selectedTask={selectedTask} />
+  const renderDetailPanel = () => (
+    <CrawlerTaskDetailPanel
+      selectedTask={selectedTask}
+      onRefresh={onRefresh}
+      modelConfigs={modelConfigs}
+    />
+  );
+
+  return (
+    <div className="flex h-full min-h-0">
+      <div className="min-w-0 flex-1 overflow-y-auto bg-muted/20 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1120px] space-y-5 2xl:max-w-[1180px]">
+          {viewMode === "create" ? renderCreatePanel() : renderDetailPanel()}
         </div>
       </div>
-
-      <CurrentTaskSidePanel selectedTask={selectedTask} onRefresh={onRefresh} />
 
       <ModelConfigDialog
         open={configDialogOpen}

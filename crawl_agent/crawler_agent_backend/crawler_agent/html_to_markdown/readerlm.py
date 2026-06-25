@@ -130,11 +130,14 @@ def create_prompt(
     schema: str = None
 ) -> str:
     if not instruction:
-        instruction = """
-        "Extract the main content from the given HTML and convert it to Markdown format. "
-        "Preserve all image links in Markdown using their full absolute URLs exactly as they appear in the HTML. "
-        "Do not omit images."
-        """
+        instruction = (
+            "Extract ONLY the main body content from the given HTML and convert it to Markdown format. "
+            "Strictly remove navigation bars, menus, breadcrumbs, login links, language switchers, "
+            "share buttons, sidebars, copyright notices and any other page chrome. "
+            "Keep only the article title, author, date, and body text. "
+            "Preserve all image links in Markdown using their full absolute URLs. "
+            "Do not omit images that are part of the main content."
+        )
 
     if schema:
         instruction = (

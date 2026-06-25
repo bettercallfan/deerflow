@@ -69,6 +69,7 @@ async def browse_page(query: str, url: str, model_config: Optional[Dict[str, str
             "@playwright/mcp@latest",
             "--browser", "chrome",
             "--executable-path", _chromium_path,
+            "--timeout-navigation", "120000",
             "--no-sandbox",
             "--isolated",
         ],

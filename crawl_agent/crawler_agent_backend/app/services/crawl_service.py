@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import re
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy import select
@@ -72,6 +73,28 @@ class CrawlService:
             paths["json_path"] = str(p)
 
         return paths
+
+    @staticmethod
+    def _call_embedding(text: str) -> list[float]:
+        """调用 text-embedding-v4 API 生成 embedding 向量。API key 从环境变量读取。"""
+        import os as _os
+        api_key = _os.environ.get("DASHSCOPE_API_KEY", "")
+        base_url = _os.environ.get("TEXT_EMBEDDING_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        if not api_key or not base_url:
+            return []
+
+        try:
+            resp = requests.post(
+                f"{base_url.rstrip('/')}/embeddings",
+                json={"model": "text-embedding-v4", "input": text[:8000]},
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("data", [{}])[0].get("embedding", [])
+        except Exception:
+            return []
 
     @staticmethod
     def _download_images(task_id: str, page_id: str, idx: int, markdown_text: str, page_url: str, html_text: str = "") -> list[dict]:
@@ -155,6 +178,164 @@ class CrawlService:
 
         manifest["pages"].append(entry)
         manifest_path.write_text(_json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _enrich_json_result(extracted: dict, idx: int, page_url: str) -> dict:
+        """通用后处理：根据数据内容自动判断类型（政策法规/代码片段），补全 LLM 无法生成的字段。"""
+        import copy
+
+        items = extracted.get("result_json", {})
+        if isinstance(items, dict):
+            items = items.get("items", [])
+        if not isinstance(items, list) or not items:
+            return extracted
+
+        enriched_items = []
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                enriched_items.append(item)
+                continue
+            item = copy.deepcopy(item)
+
+            # ── 判断数据类型 ──
+            is_code = any(k in item for k in ("raw_snippet", "raw_code", "language", "normalized_code"))
+            is_policy = any(k in item for k in ("law_name", "article_no", "office", "publish_date"))
+
+            if is_code:
+                # 代码片段：补全标准化代码的 language 字段
+                raw = item.setdefault("raw_snippet", {})
+                norm = item.setdefault("normalized_snippet", {})
+                anno = item.setdefault("semantic_annotation", {})
+                if isinstance(raw, dict):
+                    raw["language"] = "python"
+                if isinstance(norm, dict):
+                    norm["language"] = "python"
+                if isinstance(anno, dict):
+                    anno["intent"] = anno.get("intent") or ""
+                    anno["input_variables"] = anno.get("input_variables") or []
+                    anno["output_variables"] = anno.get("output_variables") or []
+                    anno["reusable_interface"] = anno.get("reusable_interface") or ""
+
+            elif is_policy:
+                # 政策法规：补全 id / page_content / metadata
+                law_name = item.get("law_name", "")
+                article_no = item.get("article_no", "")
+                if not item.get("id"):
+                    item["id"] = f"{idx}::{law_name}::{article_no}"
+                title = item.get("title") or law_name
+                content = item.get("content", "")
+                item["page_content"] = f"{title}\n{article_no} {content}".strip()
+                item["source_path"] = page_url
+                item["source_article_index"] = i + 1
+
+                meta = item.setdefault("metadata", {})
+                if isinstance(meta, dict):
+                    meta["publish_date"] = item.get("publish_date") or ""
+                    meta["effective_date"] = item.get("effective_date") or ""
+                    meta["type"] = item.get("category") or ""
+                    meta["status"] = item.get("validity_status") or ""
+                    meta["title"] = law_name
+                    meta["office"] = item.get("office") or ""
+                    meta["office_level"] = item.get("office_level") or ""
+                    meta["office_category"] = item.get("office_category") or ""
+                    meta["effective_period"] = item.get("effective_period") or ""
+                    meta["source_row_id"] = idx
+                    meta["article_index"] = i + 1
+                    meta["article_label"] = article_no
+                    meta["article_number"] = item.get("article_number") or 0
+                    meta["source_path"] = page_url
+                    meta["source_title"] = law_name
+                    meta["source_type"] = item.get("category") or ""
+                    meta["source_status"] = item.get("validity_status") or ""
+                    meta["source_office"] = item.get("office") or ""
+                    meta["source_office_level"] = item.get("office_level") or ""
+                    meta["source_office_category"] = item.get("office_category") or ""
+                    meta["source_publish_date"] = item.get("publish_date") or ""
+                    meta["source_effective_date"] = item.get("effective_date") or ""
+                    meta["source_effective_period"] = item.get("effective_period") or ""
+                    meta["source_article_index"] = i + 1
+                    for k in ("part_label", "part_title", "part_number",
+                              "subpart_label", "subpart_title", "subpart_number",
+                              "chapter_label", "chapter_title", "chapter_number",
+                              "section_label", "section_title", "section_number"):
+                        meta[k] = meta.get(k) or ""
+
+            # ── 通用：embedding 后处理字段 ──
+            text_to_embed = item.get("page_content") or item.get("content") or ""
+            vec = CrawlService._call_embedding(text_to_embed) if text_to_embed else []
+            if vec:
+                item["vector-text-embedding-v4"] = vec
+                item["_embedding_dimensions"] = len(vec)
+                item["_embedding_model"] = "text-embedding-v4"
+                item["_embedding_text_field"] = "page_content"
+
+            enriched_items.append(item)
+
+        return {**extracted, "result_json": {"items": enriched_items}}
+
+    @staticmethod
+    def _save_code_files(task_id: str, page_id: str, idx: int, markdown_text: str, page_url: str, title: str) -> None:
+        """代码片段模式：从 Markdown 中提取 ```python ``` 代码块，每个写入独立 .py 文件。"""
+        import re as _re
+        import json as _json
+        code_dir = Path("outputs") / task_id / "code"
+        code_dir.mkdir(parents=True, exist_ok=True)
+
+        # 提取所有代码块：```python ``` fence + 纯文本中的 Python 代码行
+        blocks: list[str] = []
+
+        # 方式1: ```python ... ``` fence
+        fence_pattern = _re.compile(r"```(?:python|py)\s*\n(.*?)```", _re.DOTALL)
+        blocks.extend(fence_pattern.findall(markdown_text))
+
+        # 方式2: 从 HTML <pre><code> 或 readerlm 裸输出的 Python 代码行中提取
+        # 匹配以 >>> 开头的 REPL 代码，或连续包含 python 关键字的行
+        repl_pattern = _re.compile(r"(?:^|\n)(>>>\s+.+(?:\n(?:\.\.\.\s+.+|\s*$))*)", _re.MULTILINE)
+        for m in repl_pattern.finditer(markdown_text):
+            # 将 REPL 格式转为标准 python
+            lines = []
+            for line in m.group(1).strip().split("\n"):
+                line = line.strip()
+                if line.startswith(">>> "):
+                    lines.append(line[4:])
+                elif line.startswith("... "):
+                    lines.append(line[4:])
+                elif line and not lines:
+                    lines.append(line)
+            code = "\n".join(lines).strip()
+            if code and len(code) > 10:
+                blocks.append(code)
+
+        if not blocks:
+            return
+
+        code_manifest: list[dict] = []
+        for i, block in enumerate(blocks):
+            code = block.strip()
+            if not code:
+                continue
+
+            func_match = _re.search(r"def\s+(\w+)\s*\(", code)
+            fname = f"{func_match.group(1)}.py" if func_match else f"snippet_{idx + 1}_{i + 1}.py"
+            fpath = code_dir / fname
+            n = 1
+            stem, ext = fpath.stem, fpath.suffix
+            while fpath.exists():
+                fpath = code_dir / f"{stem}_{n}{ext}"
+                n += 1
+
+            fpath.write_text(code, encoding="utf-8")
+            code_manifest.append({
+                "index": i + 1, "filename": fpath.name,
+                "path": str(fpath.relative_to(Path("outputs") / task_id)),
+                "source_url": page_url, "title": title,
+            })
+
+        if code_manifest:
+            (code_dir / "manifest.json").write_text(
+                _json.dumps({"task_id": task_id, "code_files": code_manifest}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
     def _load_schedule_position_caches(self, schedule_id: str, query_signature: str) -> list[dict[str, Any]]:
         rows = self.db.scalars(
@@ -430,6 +611,59 @@ class CrawlService:
             if not pages:
                 raise ValueError("未收集到任何候选页面，请检查站点可达性、查询条件或模型配置是否可用")
             self.log_event(task.id, "COLLECT", f"collected candidate pages: {len(pages)}")
+
+            # 代码页面快速通道：检测到 <pre>/<code>/w3-code 标签直接写 .py 并完成
+            # 仅 Markdown 模式 + 页面含多个代码块才走代码快速通道
+            is_code_mode = task.output_mode == OutputMode.MARKDOWN
+            has_code = is_code_mode and any(
+                p.get("html") and len(re.findall(
+                    r'<(pre|code)\b|<div[^>]+class="[^"]*\bcode\b[^"]*"', p["html"], re.I
+                )) >= 2 for p in pages
+            )
+            if has_code:
+                new_count = 0
+                for p in pages:
+                    url = p.get("url") or task.portal_url
+                    title = p.get("title") or ""
+                    html = p.get("html") or ""
+                    if not html: continue
+                    try:
+                        from bs4 import BeautifulSoup as _BS
+                        from html import unescape as _unescape
+                        soup = _BS(html, "html.parser")
+                        code_dir = Path("outputs") / task.id / "code"
+                        code_dir.mkdir(parents=True, exist_ok=True)
+                        seen = set()
+                        ci = 0
+                        for tag in soup.find_all(["pre", "code", "div"]):
+                            is_code = tag.name in ("pre", "code")
+                            if tag.name == "div":
+                                classes = " ".join(tag.get("class") or [])
+                                is_code = "code" in classes.lower()
+                            if not is_code: continue
+                            text = _unescape(tag.get_text()).strip()
+                            if text and len(text) > 10 and any(kw in text for kw in ("def ","print","import ","class ",">>>","=")):
+                                hh = hash(text[:200])
+                                if hh in seen: continue
+                                seen.add(hh)
+                                ci += 1
+                                fm = re.search(r"def\s+(\w+)\s*\(", text)
+                                fn = f"{fm.group(1)}.py" if fm else f"snippet_{task.id[:8]}_{ci}.py"
+                                fp = code_dir / fn; n = 1; st, ex = fp.stem, fp.suffix
+                                while fp.exists(): fp = code_dir / f"{st}_{n}{ex}"; n += 1
+                                fp.write_text(text, encoding="utf-8")
+                        new_count += max(1, ci)
+                    except Exception:
+                        pass
+                task.status = TaskStatus.SUCCEEDED
+                task.progress = 100
+                task.result_summary = f"new_pages={new_count}, code_files_extracted"
+                task.finished_at = datetime.utcnow()
+                run.status = TaskStatus.SUCCEEDED
+                run.new_pages_count = new_count
+                run.finished_at = datetime.utcnow()
+                self.db.commit()
+                return task
             task.progress = 35
             self.db.commit()
 
@@ -478,7 +712,15 @@ class CrawlService:
                     elif task.output_mode == OutputMode.HTML:
                         extracted = extract_html(url=url, html=html)
                     elif task.output_mode == OutputMode.MARKDOWN:
-                        extracted = extract_markdown(url=url, html=html)
+                        # 检测是否代码页面（含大量 <pre>/<code>/w3-code），是则跳过 ReaderLM
+                        code_page = bool(re.search(
+                            r'<(pre|code)\b|<div[^>]+class="[^"]*\bcode\b[^"]*"', html or "", re.I
+                        )) if html else False
+                        if code_page:
+                            extracted = {"result_type": "markdown", "result_markdown": html,
+                                         "result_markdown_ocr": None, "result_json": None}
+                        else:
+                            extracted = extract_markdown(url=url, html=html)
                     else:
                         reusable_position_paths = self._find_reusable_position_paths(url, position_cache_entries)
                         extracted = extract_json(
@@ -500,6 +742,8 @@ class CrawlService:
                                     position_paths=extracted_position_paths,
                                     position_cache_entries=position_cache_entries,
                                 )
+                        # JSON 模式后处理：补全 LLM 无法生成的字段
+                        extracted = self._enrich_json_result(extracted, idx, url)
 
                     # 兜底 result_type
                     output_mode_value = task.output_mode.value if hasattr(task.output_mode, "value") else str(task.output_mode)
@@ -519,6 +763,42 @@ class CrawlService:
 
                     use_file_output = not storage_db_type_override
                     if use_file_output:
+                        # 代码片段模式：直接从原始 HTML 提取 <pre>/<code>/<div class="*-code-*"> 写 .py
+                        if html:
+                            try:
+                                from bs4 import BeautifulSoup
+                                from html import unescape
+                                soup = BeautifulSoup(html, "html.parser")
+                                code_blocks = []
+                                for tag in soup.find_all(["pre", "code", "div"]):
+                                    is_code = tag.name in ("pre", "code")
+                                    if tag.name == "div":
+                                        classes = " ".join(tag.get("class") or [])
+                                        is_code = "code" in classes.lower()
+                                    if not is_code:
+                                        continue
+                                    text = unescape(tag.get_text()).strip()
+                                    if text and len(text) > 10 and any(kw in text for kw in ("def ","print","import ","class ",">>>","=")):
+                                        code_blocks.append(text)
+                                if code_blocks:
+                                    code_dir = Path("outputs") / task.id / "code"
+                                    code_dir.mkdir(parents=True, exist_ok=True)
+                                    seen = set()
+                                    for ci, c in enumerate(code_blocks):
+                                        h = hash(c[:200])
+                                        if h in seen: continue
+                                        seen.add(h)
+                                        import re as _ccre
+                                        fm = _ccre.search(r"def\s+(\w+)\s*\(", c)
+                                        fn = f"{fm.group(1)}.py" if fm else f"snippet_{page_row.id[:8]}_{ci+1}.py"
+                                        fp = code_dir / fn
+                                        n = 1; st, ex = fp.stem, fp.suffix
+                                        while fp.exists():
+                                            fp = code_dir / f"{st}_{n}{ex}"; n += 1
+                                        fp.write_text(c, encoding="utf-8")
+                            except Exception:
+                                pass
+
                         # 本地文件保存 + manifest
                         paths = self._save_result_to_file(task.id, page_row.id, idx, extracted)
                         # 同时从 Markdown 和原始 HTML 提取图片并下载
