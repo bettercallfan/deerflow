@@ -179,6 +179,30 @@ class CrawlService:
         manifest["pages"].append(entry)
         manifest_path.write_text(_json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def _sync_to_mysql(self, task_id: str) -> None:
+        """任务完成后自动将 crawl_result 同步到 MySQL。失败静默跳过。"""
+        try:
+            storage_service = StorageService(self.db)
+            results = self.db.scalars(
+                select(CrawlResult).where(CrawlResult.task_id == task_id)
+            ).all()
+            for r in results:
+                page = self.db.get(CrawlPage, r.page_id) if r.page_id else None
+                storage_service.write_to_external_storage(
+                    storage_db_type_override="mysql",
+                    task_id=task_id,
+                    page_url=page.url if page else "",
+                    title=page.title if page else None,
+                    raw_html_hash=page.raw_html_hash if page else "",
+                    normalized_content_hash=page.normalized_content_hash if page else "",
+                    result_type=r.result_type or "",
+                    result_json=r.result_json,
+                    result_markdown=r.result_markdown,
+                    result_html=page.html_content if page else None,
+                )
+        except Exception:
+            pass
+
     @staticmethod
     def _enrich_json_result(extracted: dict, idx: int, page_url: str) -> dict:
         """通用后处理：根据数据内容自动判断类型（政策法规/代码片段），补全 LLM 无法生成的字段。"""
@@ -837,6 +861,9 @@ class CrawlService:
             task.finished_at = datetime.utcnow()
 
             self.log_event(task.id, "DONE", task.result_summary)
+
+            # 自动同步已提取的页面结果到 MySQL（已配置时静默写入）
+            self._sync_to_mysql(task.id)
 
             # download 模式：把全局 downloads/ 中本次下载的文件移到任务专属目录
             if task.output_mode == OutputMode.DOWNLOAD:

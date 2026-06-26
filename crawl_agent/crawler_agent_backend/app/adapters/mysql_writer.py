@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from urllib.parse import quote_plus
 from sqlalchemy import create_engine, text
 
 
@@ -9,7 +10,7 @@ class MySQLWriter:
     def __init__(self, conn: dict):
         self.conn = conn
         self.url = (
-            f"mysql+pymysql://{conn['username']}:{conn['password']}"
+            f"mysql+pymysql://{conn['username']}:{quote_plus(conn['password'])}"
             f"@{conn['host']}:{conn['port']}/{conn['database']}?charset={conn.get('charset', 'utf8mb4')}"
         )
         self.engine = create_engine(self.url, pool_pre_ping=True)
@@ -31,6 +32,7 @@ class MySQLWriter:
             result_type VARCHAR(32) NOT NULL,
             result_json JSON NULL,
             result_markdown LONGTEXT NULL,
+            result_html LONGTEXT NULL,
             created_at DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """
@@ -47,33 +49,47 @@ class MySQLWriter:
         result_type: str,
         result_json: dict | list | None,
         result_markdown: str | None,
+        result_html: str | None = None,
     ) -> None:
         self.ensure_table()
         # PyMySQL + text() 下直接传 list/dict 可能触发 SQL 操作数错误，统一序列化为 JSON 字符串。
         result_json_payload = None if result_json is None else json.dumps(result_json, ensure_ascii=False)
-        sql = text(
-            """
-            INSERT INTO external_crawl_content (
-                task_id, page_url, title, raw_html_hash, normalized_content_hash,
-                result_type, result_json, result_markdown, created_at
-            ) VALUES (
-                :task_id, :page_url, :title, :raw_html_hash, :normalized_content_hash,
-                :result_type, :result_json, :result_markdown, :created_at
+        if result_html:
+            sql = text(
+                """
+                INSERT INTO external_crawl_content (
+                    task_id, page_url, title, raw_html_hash, normalized_content_hash,
+                    result_type, result_json, result_markdown, result_html, created_at
+                ) VALUES (
+                    :task_id, :page_url, :title, :raw_html_hash, :normalized_content_hash,
+                    :result_type, :result_json, :result_markdown, :result_html, :created_at
+                )
+                """
             )
-            """
-        )
+        else:
+            sql = text(
+                """
+                INSERT INTO external_crawl_content (
+                    task_id, page_url, title, raw_html_hash, normalized_content_hash,
+                    result_type, result_json, result_markdown, created_at
+                ) VALUES (
+                    :task_id, :page_url, :title, :raw_html_hash, :normalized_content_hash,
+                    :result_type, :result_json, :result_markdown, :created_at
+                )
+                """
+            )
+        params = {
+            "task_id": task_id,
+            "page_url": page_url,
+            "title": title,
+            "raw_html_hash": raw_html_hash,
+            "normalized_content_hash": normalized_content_hash,
+            "result_type": result_type,
+            "result_json": result_json_payload,
+            "result_markdown": result_markdown,
+            "created_at": datetime.utcnow(),
+        }
+        if result_html:
+            params["result_html"] = result_html
         with self.engine.begin() as conn:
-            conn.execute(
-                sql,
-                {
-                    "task_id": task_id,
-                    "page_url": page_url,
-                    "title": title,
-                    "raw_html_hash": raw_html_hash,
-                    "normalized_content_hash": normalized_content_hash,
-                    "result_type": result_type,
-                    "result_json": result_json_payload,
-                    "result_markdown": result_markdown,
-                    "created_at": datetime.utcnow(),
-                },
-            )
+            conn.execute(sql, params)

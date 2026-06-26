@@ -119,6 +119,7 @@ class StorageService:
         result_type: str,
         result_json: dict | list | None,
         result_markdown: str | None,
+        result_html: str | None = None,
     ) -> dict:
         if storage_db_type_override not in ("mysql", "milvus"):
             return {"written": False, "reason": "storage_db_type must be mysql or milvus"}
@@ -137,6 +138,7 @@ class StorageService:
                 result_type=result_type,
                 result_json=result_json,
                 result_markdown=result_markdown,
+                result_html=result_html,
             )
             return {"written": True, "mysql": True, "milvus": False}
 

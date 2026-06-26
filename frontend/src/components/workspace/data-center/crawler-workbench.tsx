@@ -238,12 +238,6 @@ function getStatusText(status?: CrawlTaskItem["status"]) {
 
   return map[status] ?? status;
 }
-function getStorageText(storageDbType?: string | null) {
-  if (storageDbType === "mysql") return "MySQL";
-  if (storageDbType === "milvus") return "Milvus";
-  return "本地文件";
-}
-
 function getStatusClassName(status?: CrawlTaskItem["status"]) {
   if (status === "SUCCEEDED") return "border-green-200 bg-green-50 text-green-700";
   if (status === "RUNNING") return "border-blue-200 bg-blue-50 text-blue-700";
@@ -556,12 +550,6 @@ function CrawlerTaskDetailPanel({
             <div className="text-xs text-muted-foreground">来源</div>
             <div className="mt-1 truncate text-sm font-medium">
               {selectedTask.source || "手动"}
-            </div>
-          </div>
-          <div className="rounded-xl border p-3">
-            <div className="text-xs text-muted-foreground">保存位置</div>
-            <div className="mt-1 truncate text-sm font-medium">
-              {getStorageText(selectedTask.storage_db_type)}
             </div>
           </div>
           <div className="rounded-xl border p-3">
