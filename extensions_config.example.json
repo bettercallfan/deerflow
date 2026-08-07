@@ -51,5 +51,9 @@
       "description": "Elasticsearch search and query"
     }
   },
-  "skills": {}
+  "skills": {
+    "multi-data-process-rag": {
+      "enabled": true
+    }
+  }
 }

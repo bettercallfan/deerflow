@@ -1,6 +1,18 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+const optionalHttpUrl = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      const protocol = new URL(value).protocol;
+      return protocol === "http:" || protocol === "https:";
+    },
+    { message: "Must be an HTTP(S) URL" },
+  )
+  .optional();
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -28,6 +40,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BACKEND_BASE_URL: z.string().optional(),
     NEXT_PUBLIC_LANGGRAPH_BASE_URL: z.string().optional(),
     NEXT_PUBLIC_STATIC_WEBSITE_ONLY: z.string().optional(),
+    NEXT_PUBLIC_MULTI_DATA_PROCESS_URL: optionalHttpUrl,
   },
 
   /**
@@ -45,6 +58,8 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGGRAPH_BASE_URL: process.env.NEXT_PUBLIC_LANGGRAPH_BASE_URL,
     NEXT_PUBLIC_STATIC_WEBSITE_ONLY:
       process.env.NEXT_PUBLIC_STATIC_WEBSITE_ONLY,
+    NEXT_PUBLIC_MULTI_DATA_PROCESS_URL:
+      process.env.NEXT_PUBLIC_MULTI_DATA_PROCESS_URL,
     GITHUB_OAUTH_TOKEN: process.env.GITHUB_OAUTH_TOKEN,
   },
   /**

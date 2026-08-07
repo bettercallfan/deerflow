@@ -68,6 +68,8 @@ skills/custom/*
 !skills/custom/street_view_image/**
 !skills/custom/video_surveillance
 !skills/custom/video_surveillance/**
+!skills/custom/multi-data-process-rag/
+!skills/custom/multi-data-process-rag/**
 # Do not track local Playwright browser binaries
 skills/custom/policies-regulations/**/node_modules/
 skills/custom/policies-regulations/**/node_modules/**

@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "identity": {
+    "id": "multi-data-process-rag",
+    "name": "multi-data-process-rag",
+    "description": "检索多模态数据处理平台已完成工作流的网页爬取、文档解析、OCR 与转换结果，并返回数据集版本和来源引用。"
+  },
+  "scope": {
+    "scenes": [
+      "multi_data_process"
+    ],
+    "is_public": false,
+    "task_types": [
+      "processed_dataset_retrieval",
+      "workflow_result_question_answering",
+      "web_crawl_result_retrieval",
+      "document_parse_result_retrieval"
+    ],
+    "input_types": [
+      "text",
+      "dataset_id",
+      "dataset_version_id",
+      "workspace_id"
+    ],
+    "output_types": [
+      "retrieval_evidence",
+      "grounded_answer",
+      "dataset_version_citation"
+    ]
+  },
+  "routing": {
+    "routing_text": "多模态数据处理平台工作流结果检索。适用于从已经完成并同步到 DeerFlow 的网页爬取、文档解析、OCR、Markdown 或 JSON 处理结果中回答问题，返回数据集 ID、版本 ID、标题、来源 URL 和证据片段。仅检索当前成功版本，除非用户明确指定历史版本。不能用于上传文件、启动工作流、ES 运维、索引创建或联网搜索。",
+    "positive_triggers": [
+      "检索多模态数据处理平台的工作流结果",
+      "查询网页爬取或文档解析后的处理数据",
+      "根据处理后数据集回答问题并给出来源",
+      "查询某个数据集版本中的内容"
+    ],
+    "negative_triggers": [
+      "要求上传或解析一个尚未处理的新文件",
+      "要求创建 ES 索引、导入数据或维护 ES",
+      "要求联网搜索最新网页或新闻"
+    ],
+    "keywords": [
+      "多模态数据处理平台",
+      "工作流处理结果",
+      "处理后数据集",
+      "网页爬取结果",
+      "文档解析结果",
+      "数据集版本",
+      "来源引用"
+    ],
+    "anti_keywords": [
+      "ES 运维",
+      "索引创建",
+      "数据导入",
+      "联网搜索"
+    ]
+  },
+  "body": {
+    "source": "SKILL.md",
+    "content": "受控检索已同步的多模态数据处理工作流结果。调用固定 Gateway 检索接口，默认只返回当前 ready 版本的 BM25 证据；回答必须带数据集、版本和来源引用。"
+  },
+  "execution": {
+    "required_tools": [
+      "python3",
+      "scripts/search_multi_data_process.py"
+    ],
+    "optional_tools": [],
+    "allowed_file_patterns": [
+      "*.md",
+      "*.json"
+    ],
+    "can_run_standalone": true,
+    "can_compose_with": [
+      "data-analysis",
+      "document-generation"
+    ]
+  },
+  "routing_policy": {
+    "priority": 88,
+    "conflict_group": "multi_data_process_retrieval",
+    "prefer_when": [
+      "用户明确询问已完成的数据处理工作流、网页爬取、OCR 或文档解析结果",
+      "用户要求基于数据集版本的内容回答并提供来源"
+    ],
+    "defer_when": [
+      "用户主要要求新文件解析或工作流创建",
+      "用户主要要求 Elasticsearch 运维或索引管理",
+      "用户要求联网获取尚未进入数据集的内容"
+    ]
+  },
+  "source": {
+    "skill_dir": "skills/custom/multi-data-process-rag",
+    "skill_md_path": "skills/custom/multi-data-process-rag/SKILL.md",
+    "skill_md_hash": "",
+    "generated_at": "2026-07-31T00:00:00Z",
+    "generator_version": "manual-v1"
+  },
+  "embedding": {
+    "model": "SkillRouter-Embedding-0.6B",
+    "text_hash": "",
+    "es_index": "citybrain-skill-router-cards",
+    "es_doc_id": "multi-data-process-rag"
+  },
+  "evaluation": {
+    "golden_queries": [
+      {
+        "query": "请检索多模态数据处理平台中网页爬取后的处理结果",
+        "should_route": true,
+        "reason": "用户请求已完成的工作流结果检索"
+      },
+      {
+        "query": "帮我上传一个 PDF 并解析",
+        "should_route": false,
+        "reason": "这是新文件处理，不是已同步结果检索"
+      }
+    ],
+    "last_eval": {}
+  }
+}

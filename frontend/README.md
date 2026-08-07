@@ -71,6 +71,10 @@ Key environment variables (see `.env.example` for full list):
 NEXT_PUBLIC_BACKEND_BASE_URL="http://localhost:8001"
 # LangGraph API URLs (optional, uses nginx proxy by default)
 NEXT_PUBLIC_LANGGRAPH_BASE_URL="http://localhost:2024"
+
+# Optional: opens the multi-modal data processing platform from Data Center.
+# Must be an absolute HTTP(S) URL; omit it to disable the entry.
+NEXT_PUBLIC_MULTI_DATA_PROCESS_URL="https://multi-data-process.example.com"
 ```
 
 ## Project Structure

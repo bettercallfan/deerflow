@@ -48,7 +48,7 @@ interface CrawlerWorkbenchProps {
 
 type WorkMode = "manual" | "schedule";
 type CrawlerViewMode = "create" | "detail";
-type CrawlMode = "general" | "policy_regulation" | "code_snippet" | "video_surveillance";
+type CrawlMode = "general" | "policy_regulation" | "video_surveillance";
 
 const POLICY_REGULATION_SCHEMA = {
   type: "object",
@@ -689,11 +689,6 @@ export function CrawlerWorkbench({
       return;
     }
 
-    if (value === "code_snippet") {
-      setOutputMode("markdown");
-      return;
-    }
-
     // 视频监控类：download 模式，Agent 只导航+下载，不提取页面内容
     if (value === "video_surveillance") {
       setOutputMode("download" as OutputMode);
@@ -865,7 +860,7 @@ export function CrawlerWorkbench({
                     <SelectContent>
                       <SelectItem value="general">通用网页爬取</SelectItem>
                       <SelectItem value="policy_regulation">政策法规类数据爬取</SelectItem>
-                      <SelectItem value="code_snippet">代码片段类数据爬取</SelectItem>
+
                       <SelectItem value="video_surveillance">数据集下载</SelectItem>
                     </SelectContent>
                   </Select>
@@ -934,9 +929,7 @@ export function CrawlerWorkbench({
                   placeholder={
                     crawlMode === "policy_regulation"
                       ? "例如：提取页面中的政策标题、发布时间和正文"
-                      : crawlMode === "code_snippet"
-                        ? "例如：提取页面中的代码块、编程语言和注释"
-                        : crawlMode === "video_surveillance"
+                      : crawlMode === "video_surveillance"
                               ? "例如：提取页面中所有监控视频，使用 download_file 下载视频文件到本地"
                               : "例如：提取页面的主要内容"
                   }
@@ -964,11 +957,6 @@ export function CrawlerWorkbench({
 
               <div className="space-y-2.5">
                 <label className="text-sm font-medium">输出模式</label>
-                {crawlMode === "code_snippet" ? (
-                  <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm text-muted-foreground">
-                    Markdown → .py 代码文件
-                  </div>
-                ) : (
                 <Select
                   value={outputMode}
                   onValueChange={(value) => {
@@ -990,11 +978,10 @@ export function CrawlerWorkbench({
                     <SelectItem value="download">数据集下载</SelectItem>
                   </SelectContent>
                 </Select>
-                )}
               </div>
 
 
-              {outputMode === "json" && crawlMode !== "code_snippet" && (
+              {outputMode === "json" && (
                 <div className="space-y-2.5 lg:col-span-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -1040,12 +1027,6 @@ export function CrawlerWorkbench({
                       </div>
                     </>
                   )}
-                </div>
-              )}
-
-              {crawlMode === "code_snippet" && (
-                <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                  输出为独立 <code className="rounded bg-muted px-1 text-xs">.py</code> 代码文件，每个函数/类/语句块独立拆分。
                 </div>
               )}
 

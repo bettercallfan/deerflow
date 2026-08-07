@@ -2,6 +2,7 @@
 
 import {
   DatabaseIcon,
+  ExternalLinkIcon,
   FolderArchiveIcon,
   HardDriveDownloadIcon,
   RefreshCwIcon,
@@ -24,6 +25,7 @@ import {
   type EsSamplesResponse,
   writeSelectedDataSourceIds,
 } from "@/core/data-center";
+import { env } from "@/env";
 
 import type { CrawlTaskItem } from "@/core/crawler";
 import { useCrawlTasks } from "@/core/crawler";
@@ -51,6 +53,8 @@ import {
   WorkspaceContainer,
   WorkspaceHeader,
 } from "@/components/workspace/workspace-container";
+
+const MULTI_DATA_PROCESS_DOCUMENTS_INDEX = "multi-data-process-documents";
 
 function labelOfType(
   type: DataSourceRecord["type"],
@@ -103,6 +107,92 @@ function isEsSource(source: DataSourceRecord | null | undefined) {
 function getEsIndexName(source: DataSourceRecord | null | undefined) {
   const value = source?.metadata?.index_name;
   return typeof value === "string" ? value : "";
+}
+
+function getSafeExternalHttpUrl(value: string | undefined) {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function MultiDataProcessPlatformEntry({
+  url,
+}: {
+  url: string | null;
+}) {
+  const className =
+    "inline-flex items-center gap-1 rounded-lg px-4 py-2 text-sm transition";
+
+  if (!url) {
+    return (
+      <span
+        className="inline-flex"
+        title="未配置多模态数据处理平台地址"
+      >
+        <button
+          type="button"
+          disabled
+          className={`${className} cursor-not-allowed text-muted-foreground/50`}
+        >
+          多模态处理平台
+          <ExternalLinkIcon className="size-3.5" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${className} text-muted-foreground hover:bg-background hover:text-foreground`}
+    >
+      多模态处理平台
+      <ExternalLinkIcon className="size-3.5" />
+    </a>
+  );
+}
+
+function MultiDataProcessIndexCta({
+  url,
+}: {
+  url: string | null;
+}) {
+  if (!url) {
+    return (
+      <div className="space-y-2">
+        <span
+          className="inline-flex"
+          title="请配置 NEXT_PUBLIC_MULTI_DATA_PROCESS_URL 后再打开平台"
+        >
+          <Button type="button" disabled>
+            多模态数据处理平台未配置
+            <ExternalLinkIcon className="ml-2 size-4" />
+          </Button>
+        </span>
+        <p className="text-muted-foreground text-xs">
+          请配置 NEXT_PUBLIC_MULTI_DATA_PROCESS_URL 后刷新前端。
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <Button asChild type="button">
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        打开多模态数据处理平台
+        <ExternalLinkIcon className="ml-2 size-4" />
+      </a>
+    </Button>
+  );
 }
 
 function esIndexToDataSource(index: EsIndexItem): DataSourceRecord {
@@ -173,6 +263,9 @@ function formatDateTime(value?: string | null) {
 
 export function DataCenterPage() {
   const { t } = useI18n();
+  const multiDataProcessUrl = getSafeExternalHttpUrl(
+    env.NEXT_PUBLIC_MULTI_DATA_PROCESS_URL,
+  );
   const { data, isLoading, error, refetch } = useDataSources();
 
   const {
@@ -366,6 +459,17 @@ export function DataCenterPage() {
     </button>
   );
 
+  const renderDataCenterTabs = () => (
+    <div className="bg-muted inline-flex flex-wrap rounded-xl p-1">
+      {renderTabButton("datasets", "数据集管理")}
+      {renderTabButton("sources", t.dataCenter.allSources)}
+      {renderTabButton("uploads", t.dataCenter.uploadedData)}
+      {renderTabButton("crawler", t.dataCenter.webScraping)}
+      {renderTabButton("document-parser", "文档解析")}
+      <MultiDataProcessPlatformEntry url={multiDataProcessUrl} />
+    </div>
+  );
+
   return (
     <WorkspaceContainer>
       <WorkspaceHeader />
@@ -391,13 +495,7 @@ export function DataCenterPage() {
                 </div>
 
                 <div className="shrink-0 border-b p-6">
-                  <div className="bg-muted inline-flex flex-wrap rounded-xl p-1">
-                    {renderTabButton("datasets", "数据集管理")}
-                    {renderTabButton("sources", t.dataCenter.allSources)}
-                    {renderTabButton("uploads", t.dataCenter.uploadedData)}
-                    {renderTabButton("crawler", t.dataCenter.webScraping)}
-                    {renderTabButton("document-parser", "文档解析")}
-                  </div>
+                  {renderDataCenterTabs()}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-hidden">
@@ -416,13 +514,7 @@ export function DataCenterPage() {
                 </div>
 
                 <div className="shrink-0 border-b p-6">
-                  <div className="bg-muted inline-flex flex-wrap rounded-xl p-1">
-                    {renderTabButton("datasets", "数据集管理")}
-                    {renderTabButton("sources", t.dataCenter.allSources)}
-                    {renderTabButton("uploads", t.dataCenter.uploadedData)}
-                    {renderTabButton("crawler", t.dataCenter.webScraping)}
-                    {renderTabButton("document-parser", "文档解析")}
-                  </div>
+                  {renderDataCenterTabs()}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-hidden p-6">
@@ -470,13 +562,7 @@ export function DataCenterPage() {
                     />
                   </div>
                   )}
-                  <div className="bg-muted inline-flex rounded-xl p-1">
-                    {renderTabButton("datasets", "数据集管理")}
-                    {renderTabButton("sources", t.dataCenter.allSources)}
-                    {renderTabButton("uploads", t.dataCenter.uploadedData)}
-                    {renderTabButton("crawler", t.dataCenter.webScraping)}
-                    {renderTabButton("document-parser", "文档解析")}
-                  </div>
+                  {renderDataCenterTabs()}
                 </div>
 
                 {activeTab === "crawler" ? (
@@ -613,6 +699,7 @@ export function DataCenterPage() {
                         samples={selectedEsSamples}
                         detailLoading={isEsIndexDetailLoading}
                         samplesLoading={isEsSamplesLoading}
+                        multiDataProcessUrl={multiDataProcessUrl}
                       />
                     ) : (
                       <div className="mx-auto flex w-full max-w-xl flex-col items-center text-center">
@@ -908,6 +995,7 @@ function EsIndexMainPanel({
   samples,
   detailLoading,
   samplesLoading,
+  multiDataProcessUrl,
 }: {
   source: DataSourceRecord;
   indexName: string;
@@ -915,6 +1003,7 @@ function EsIndexMainPanel({
   samples?: EsSamplesResponse;
   detailLoading: boolean;
   samplesLoading: boolean;
+  multiDataProcessUrl: string | null;
 }) {
   const docsCount = getMetadataNumber(source, "docs_count") ?? detail?.docs_count ?? 0;
   const storeSize =
@@ -973,6 +1062,11 @@ function EsIndexMainPanel({
             value={health}
           />
         </div>
+        {indexName === MULTI_DATA_PROCESS_DOCUMENTS_INDEX && (
+          <div className="mt-5">
+            <MultiDataProcessIndexCta url={multiDataProcessUrl} />
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">

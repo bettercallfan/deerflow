@@ -205,8 +205,11 @@ FastAPI application on port 8001 with health check at `GET /health`.
 | **Uploads** (`/api/threads/{id}/uploads`) | `POST /` - upload files (auto-converts PDF/PPT/Excel/Word); `GET /list` - list; `DELETE /{filename}` - delete |
 | **Artifacts** (`/api/threads/{id}/artifacts`) | `GET /{path}` - serve artifacts; `?download=true` for file download |
 | **Suggestions** (`/api/threads/{id}/suggestions`) | `POST /` - generate follow-up questions; rich list/block model content is normalized before JSON parsing |
+| **Data Center** (`/api/data-center/es`) | `GET /health`, `GET /indices`, `GET /indices/{name}`, and `GET /indices/{name}/samples`; system indexes and the internal `multi-data-process-rag-chunks` index are hidden from the UI |
 
 Proxied through nginx: `/api/langgraph/*` → LangGraph, all other `/api/*` → Gateway.
+
+**Data Center ES visibility**: `DATA_CENTER_ES_INDEX_DENYLIST` adds comma-separated hidden indexes. The built-in internal RAG chunks index remains denied even when an allowlist is configured; `DATA_CENTER_ES_INDEX_ALLOWLIST` can further restrict the visible user indexes.
 
 ### Sandbox System (`packages/harness/deerflow/sandbox/`)
 

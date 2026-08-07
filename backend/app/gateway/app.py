@@ -12,6 +12,7 @@ from app.gateway.routers import (
     crawler,
     datasets,
     document_parser,
+    multi_data_process_rag,
     data_center,
     mcp,
     memory,
@@ -149,6 +150,10 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
                 "description": "Manage datasets and data sources shown in the front-end data center",
             },
             {
+                "name": "multi_data_process_rag",
+                "description": "Synchronize completed Multi Data Process dataset versions for grounded retrieval",
+            },
+            {
                 "name": "crawler",
                 "description": "Web crawling task management — create, monitor, and retrieve results from the crawler agent",
             },
@@ -200,6 +205,9 @@ This gateway provides custom endpoints for models, MCP configuration, skills, an
 
     # Dataset viewer proxy API is mounted at /api/data-center/datasets
     app.include_router(datasets.router)
+
+    # Controlled MDP dataset-version ingestion API is mounted at /api/multi-data-process-rag
+    app.include_router(multi_data_process_rag.router)
 
     app.include_router(document_parser.router)
 

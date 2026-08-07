@@ -126,6 +126,25 @@ FastAPI application providing REST endpoints for frontend integration:
 | `POST /api/threads/{id}/uploads` | Upload files (auto-converts PDF/PPT/Excel/Word to Markdown, rejects directory paths) |
 | `GET /api/threads/{id}/uploads/list` | List uploaded files |
 | `GET /api/threads/{id}/artifacts/{path}` | Serve generated artifacts |
+| `GET /api/data-center/es/*` | Inspect Elasticsearch health, visible indexes, mappings, and samples for the Data Center |
+
+### Multi Data Process RAG
+
+A completed Multi Data Process dataset version can be made available to DeerFlow chat without exposing Elasticsearch directly:
+
+```text
+multi-data-process-documents (canonical, status=ready, is_current=true)
+  -> POST /api/multi-data-process-rag/sync
+  -> multi-data-process-rag-chunks (internal BM25 chunks)
+  -> multi-data-process-rag Skill -> POST /api/multi-data-process-rag/search
+```
+
+- `POST /api/multi-data-process-rag/sync` accepts the `multi-data-process-rag-event-v1` callback envelope. It only reads the server-configured `multi-data-process-documents` index and only materialises the named ready/current version. It is replay-safe: replacement is scoped to the exact `(dataset_id, dataset_version_id)` pair.
+- `POST /api/multi-data-process-rag/cleanup` accepts only `dataset_version.failed` and deletes only that exact version's chunks. Repeating it is safe.
+- `POST /api/multi-data-process-rag/search` is a read-only, fixed-index BM25 endpoint for the sandbox Skill. By default it returns only global, `ready`, `is_current=true` chunks and includes a data-set/version/source citation. Historical retrieval requires an explicit flag.
+- Sync and cleanup require `MULTI_DATA_PROCESS_RAG_SYNC_TOKEN`; search requires the separate `MULTI_DATA_PROCESS_RAG_SEARCH_TOKEN`. Never put either token or ES credentials in `SKILL.md`.
+
+Set `MULTI_DATA_PROCESS_RAG_SOURCE_INDEX=multi-data-process-documents`, `MULTI_DATA_PROCESS_RAG_CHUNKS_INDEX=multi-data-process-rag-chunks`, and the two tokens in `.env`. The Docker sandbox receives only `MULTI_DATA_PROCESS_RAG_GATEWAY_URL` and the search token through `config.yaml`; the default Linux Docker-host address is `http://172.17.0.1:3318`. The custom `multi-data-process-rag` Skill is explicitly enabled in `extensions_config.json` and is injected by the `multi_data_process` intent scene even while the optional SkillRouter ranker is disabled.
 
 ### IM Channels
 
@@ -301,6 +320,7 @@ MCP servers and skill states in a single file:
 - `DEER_FLOW_EXTENSIONS_CONFIG_PATH` - Override extensions_config.json location
 - Model API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, etc.
 - Tool API keys: `TAVILY_API_KEY`, `GITHUB_TOKEN`, etc.
+- Data Center ES visibility: `DATA_CENTER_ES_INDEX_DENYLIST` adds comma-separated hidden indexes. The internal `multi-data-process-rag-chunks` index is always hidden; `DATA_CENTER_ES_INDEX_ALLOWLIST` can optionally restrict the remaining visible indexes.
 
 ---
 

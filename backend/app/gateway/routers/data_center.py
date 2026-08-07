@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data-center", tags=["data_center"])
 
+_DEFAULT_DATA_CENTER_ES_INDEX_DENYLIST = frozenset(
+    {"multi-data-process-rag-chunks"}
+)
+
 DataSourceType = Literal["local_dataset", "uploaded_file", "database", "vector_store"]
 DataSourceStatus = Literal["ready", "syncing", "error", "disabled"]
 OwnerScope = Literal["thread", "workspace", "global"]
@@ -215,6 +219,7 @@ def _data_center_es_password() -> str | None:
         or os.getenv("ES_PASSWORD")
     )
 
+
 def _data_center_es_hide_system_indices() -> bool:
     return os.getenv("DATA_CENTER_ES_HIDE_SYSTEM_INDICES", "true").lower() == "true"
 
@@ -222,6 +227,12 @@ def _data_center_es_hide_system_indices() -> bool:
 def _data_center_es_allowlist() -> set[str]:
     raw = os.getenv("DATA_CENTER_ES_INDEX_ALLOWLIST", "").strip()
     return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _data_center_es_denylist() -> set[str]:
+    raw = os.getenv("DATA_CENTER_ES_INDEX_DENYLIST", "").strip()
+    configured = {item.strip() for item in raw.split(",") if item.strip()}
+    return set(_DEFAULT_DATA_CENTER_ES_INDEX_DENYLIST) | configured
 
 
 def _data_center_es_auth():
@@ -258,6 +269,9 @@ def _is_allowed_es_index(index_name: str) -> bool:
         return False
 
     if _data_center_es_hide_system_indices() and index_name.startswith("."):
+        return False
+
+    if index_name in _data_center_es_denylist():
         return False
 
     allowlist = _data_center_es_allowlist()
